@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Archives
+*.zip
+
+# Claude Code
+.claude/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Environment and secrets
+.env
+*.db
+
+# Old nested structure
+files/

@@ -1,0 +1,1970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In-Course Assistant for Skilljar + Rise</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230D2B3E' rx='20' width='100' height='100'/><path fill='%235FCFB4' d='M70 35a5 5 0 0 1 5 5v20a5 5 0 0 1-5 5H40l-15 15V40a5 5 0 0 1 5-5h40z'/></svg>">
+    <style>
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --accent: #5FCFB4;
+            --accent-hover: #4db89e;
+            --brand: #0D2B3E;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --success: #10b981;
+            --shadow: rgba(0, 0, 0, 0.08);
+            --shadow-lg: rgba(0, 0, 0, 0.15);
+            --modal-overlay: rgba(0, 0, 0, 0.5);
+            --code-bg: #1e293b;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --border-color: #475569;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --brand: #5FCFB4;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --shadow-lg: rgba(0, 0, 0, 0.4);
+            --modal-overlay: rgba(0, 0, 0, 0.7);
+            --code-bg: #0f172a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+            transition: background 0.3s, color 0.3s;
+        }
+        .navbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 20px;
+            color: var(--brand);
+        }
+        .navbar-brand span { font-size: 28px; }
+        .navbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .settings-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .settings-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent);
+        }
+        .settings-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+        .header h1 { font-size: 28px; font-weight: 700; }
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--brand);
+            color: white;
+        }
+        [data-theme="dark"] .btn-primary {
+            color: #0D2B3E;
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-secondary:hover { background: var(--bg-tertiary); }
+        .btn-accent {
+            background: var(--accent);
+            color: #0D2B3E;
+        }
+        .btn-accent:hover { background: var(--accent-hover); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: var(--danger-hover); }
+        .btn-sm { padding: 8px 16px; font-size: 13px; }
+        .courses-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 24px;
+        }
+        .course-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        .course-card:hover {
+            box-shadow: 0 4px 12px var(--shadow);
+            transform: translateY(-2px);
+        }
+        .course-card-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .course-card-header h3 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+        .course-card-header p { color: var(--text-secondary); font-size: 14px; }
+        .course-card-body { padding: 20px; }
+        .course-card-meta {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .course-card-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+        .empty-state {
+            text-align: center;
+            padding: 80px 24px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 2px dashed var(--border-color);
+        }
+        .empty-state h2 { font-size: 20px; margin-bottom: 8px; }
+        .empty-state p { color: var(--text-secondary); margin-bottom: 24px; }
+
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--modal-overlay);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+            border: 1px solid var(--border-color);
+        }
+        .modal-overlay.show .modal { transform: scale(1); }
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: var(--bg-secondary);
+            z-index: 10;
+        }
+        .modal-header h2 { font-size: 20px; font-weight: 600; }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 4px;
+        }
+        .modal-close:hover { color: var(--text-primary); }
+        .modal-body { padding: 24px; }
+        .modal-footer {
+            padding: 20px 24px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            position: sticky;
+            bottom: 0;
+            background: var(--bg-secondary);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tab {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: var(--text-primary); }
+        .tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Form styles */
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(95, 207, 180, 0.1);
+        }
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: var(--text-muted);
+        }
+        .form-group textarea { resize: vertical; min-height: 120px; }
+        .form-group .hint { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        /* Color picker */
+        .color-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .color-input-wrapper input[type="color"] {
+            width: 48px;
+            height: 48px;
+            padding: 0;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            background: var(--bg-secondary);
+        }
+        .color-input-wrapper input[type="text"] {
+            flex: 1;
+            font-family: monospace;
+        }
+
+        /* File upload */
+        .file-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+            background: var(--bg-secondary);
+        }
+        .file-upload-area:hover,
+        .file-upload-area.dragover {
+            border-color: var(--accent);
+            background: var(--bg-tertiary);
+        }
+        .file-upload-content { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .file-upload-icon { font-size: 32px; }
+        .file-upload-content p { margin: 0; color: var(--text-secondary); font-size: 14px; }
+        .file-upload-content a { color: var(--brand); text-decoration: none; font-weight: 500; }
+        .file-upload-success {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: center;
+            color: var(--success);
+        }
+        .file-upload-success a { color: var(--danger); font-size: 13px; }
+        #uploaded-stats { color: var(--text-secondary); font-size: 13px; }
+
+        /* Preview */
+        .preview-container {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+        }
+        .widget-preview {
+            width: 320px;
+            height: 450px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px var(--shadow-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .preview-header {
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+        .preview-header-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-header-icon svg { width: 18px; height: 18px; }
+        .preview-header-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+        .preview-header-info p { font-size: 11px; opacity: 0.8; }
+        .preview-messages { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .preview-message {
+            display: flex;
+            gap: 8px;
+            max-width: 85%;
+        }
+        .preview-message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .preview-message-avatar {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .preview-message-avatar svg { width: 14px; height: 14px; }
+        .preview-message-content {
+            padding: 10px 12px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .preview-message.assistant .preview-message-content {
+            background: white;
+            border: 1px solid #e2e8f0;
+        }
+        .preview-message.user .preview-message-content { color: white; }
+        .preview-input {
+            padding: 12px 16px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: white;
+        }
+        .preview-input-field {
+            flex: 1;
+            border: 1px solid #e2e8f0;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: #94a3b8;
+            background: white;
+        }
+        .preview-send-btn {
+            width: 38px;
+            height: 38px;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-send-btn svg { width: 16px; height: 16px; }
+
+        /* Embed code */
+        .embed-code-container {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 16px;
+            position: relative;
+        }
+        .embed-code {
+            color: #e2e8f0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .copy-button {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: #374151;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .copy-button:hover { background: #4b5563; }
+        .api-url-input { margin-bottom: 16px; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--success);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 2000;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.error { background: var(--danger); }
+        .loading { opacity: 0.6; pointer-events: none; }
+
+        /* Uploaded files list */
+        .uploaded-file-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .uploaded-file-item .file-icon { font-size: 16px; }
+        .uploaded-file-item .file-name { flex: 1; font-weight: 500; color: var(--text-primary); }
+        .uploaded-file-item .file-stats { color: var(--text-muted); font-size: 12px; }
+        .uploaded-file-item .file-remove {
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .uploaded-file-item .file-remove:hover { background: var(--border-color); color: var(--danger); }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        .footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .footer a:hover {
+            color: var(--accent);
+        }
+
+        /* Widget theme selector */
+        .theme-selector {
+            display: flex;
+            gap: 12px;
+        }
+        .theme-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .theme-option:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        .theme-option.active {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #0D2B3E;
+        }
+        .theme-option svg {
+            flex-shrink: 0;
+        }
+
+        /* Settings Modal Styles */
+        .provider-selector {
+            display: flex;
+            gap: 12px;
+        }
+        .provider-option {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .provider-option:hover {
+            border-color: var(--accent);
+        }
+        .provider-option.active {
+            border-color: var(--accent);
+            background: rgba(95, 207, 180, 0.1);
+        }
+        .provider-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            color: white;
+        }
+        .status-badge {
+            background: #dcfce7;
+            color: #166534;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .model-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .model-selector .model-option {
+            display: flex !important;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            margin-bottom: 0;
+        }
+        .model-option:hover {
+            border-color: var(--accent);
+        }
+        .model-option.active {
+            border-color: var(--accent);
+            background: rgba(95, 207, 180, 0.1);
+        }
+        .model-option input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            accent-color: var(--accent);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .model-info {
+            flex: 1;
+        }
+        .model-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .model-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .model-badge.recommended { background: #dbeafe; color: #1e40af; }
+        .model-badge.budget { background: #fef3c7; color: #92400e; }
+        .model-badge.premium { background: #f3e8ff; color: #7c3aed; }
+        .model-badge.standard { background: #f1f5f9; color: #475569; }
+        .model-badge.new { background: #dcfce7; color: #166534; }
+        .model-description {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .provider-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .provider-option.disabled:hover {
+            border-color: var(--border-color);
+        }
+        .provider-option .no-key-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 100 100" style="margin-right: -4px;">
+                <rect fill="#0D2B3E" rx="20" width="100" height="100"/>
+                <path fill="#5FCFB4" d="M70 35a5 5 0 0 1 5 5v20a5 5 0 0 1-5 5H40l-15 15V40a5 5 0 0 1 5-5h40z"/>
+            </svg>
+            In-Course Assistant for Skilljar + Rise
+        </div>
+        <div class="navbar-actions">
+            <button class="settings-btn" onclick="openGlobalScriptModal()" style="background: var(--accent); color: #0D2B3E; border-color: var(--accent);">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="16 18 22 12 16 6"></polyline>
+                    <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+                Add to Skilljar
+            </button>
+            <button class="settings-btn" onclick="openWidgetStyleModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                    <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                    <path d="M2 2l7.586 7.586"></path>
+                    <circle cx="11" cy="11" r="2"></circle>
+                </svg>
+                Widget Style
+            </button>
+            <button class="settings-btn" onclick="openSettingsModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                API Keys
+            </button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="header">
+            <h1>Your Course Bots</h1>
+            <button class="btn btn-primary" onclick="openCreateModal()">+ Create Course Bot</button>
+        </div>
+        <div id="courses-container"></div>
+    </div>
+
+    <footer class="footer">
+        v1.0 · Created by <a href="mailto:kelly.r.mullaney@gmail.com">Kelly Mullaney</a>
+    </footer>
+
+    <!-- Create/Edit Modal -->
+    <div class="modal-overlay" id="course-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">Create Course Bot</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="course-form">
+                    <input type="hidden" id="course-id">
+
+                    <div class="form-group">
+                        <label for="course-name">Course Name *</label>
+                        <input type="text" id="course-name" placeholder="e.g., Introduction to Chrome" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="course-description">Description</label>
+                        <input type="text" id="course-description" placeholder="Brief description of the course">
+                    </div>
+                    <div class="form-group">
+                        <label>Upload Course Content</label>
+                        <div class="file-upload-area" id="file-upload-area">
+                            <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md" multiple style="display: none;">
+                            <div class="file-upload-content">
+                                <span class="file-upload-icon">📄</span>
+                                <p>Drag & drop files here, or <a href="#" onclick="document.getElementById('file-input').click(); return false;">browse</a></p>
+                                <p class="hint">Supports PDF, DOCX, TXT, MD (max 10MB each). Upload multiple files to combine.</p>
+                            </div>
+                        </div>
+                        <div class="uploaded-files-list" id="uploaded-files-list" style="display: none; margin-top: 12px;">
+                            <div class="uploaded-files-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-weight: 500; font-size: 14px;">Uploaded Files</span>
+                                <a href="#" onclick="clearAllFiles(); return false;" style="font-size: 13px;">Clear all</a>
+                            </div>
+                            <div id="uploaded-files-items"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="course-content">Course Content *</label>
+                        <textarea id="course-content" rows="8" placeholder="Paste your course transcript or upload files above." required></textarea>
+                        <div id="context-usage-indicator" style="margin-top: 8px; display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span class="hint" style="margin: 0;">Context window usage</span>
+                                <span id="context-usage-text" style="font-size: 12px; font-weight: 500;"></span>
+                            </div>
+                            <div style="height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden;">
+                                <div id="context-usage-bar" style="height: 100%; border-radius: 3px; transition: width 0.3s, background 0.3s;"></div>
+                            </div>
+                            <p id="context-usage-warning" class="hint" style="margin-top: 6px; display: none;"></p>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="system-prompt">Custom System Prompt (Optional)</label>
+                        <textarea id="system-prompt" rows="3" placeholder="Customize how the AI responds. Leave blank for default behavior."></textarea>
+                    </div>
+
+                    <!-- LLM Selection -->
+                    <div class="form-group" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color);">
+                        <label>AI Model</label>
+                        <p class="hint" style="margin-bottom: 12px;">Select which AI model powers this course bot.</p>
+
+                        <!-- No API Keys Warning -->
+                        <div id="no-api-keys-warning" style="display: none; padding: 12px 16px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; margin-bottom: 16px; color: #92400e; font-size: 14px;">
+                            <strong>No API keys configured.</strong>
+                            <a href="#" onclick="closeModal(); openSettingsModal(); return false;" style="color: #d97706; font-weight: 600;">Add API keys</a> to enable AI models.
+                        </div>
+
+                        <!-- Provider Selection -->
+                        <div class="provider-selector" id="course-provider-selector" style="margin-bottom: 16px;">
+                            <button type="button" class="provider-option" data-provider="anthropic" onclick="selectCourseProvider('anthropic')">
+                                <span class="provider-icon" style="background: #D4A574;">A</span>
+                                <span>Anthropic</span>
+                            </button>
+                            <button type="button" class="provider-option" data-provider="openai" onclick="selectCourseProvider('openai')">
+                                <span class="provider-icon" style="background: #10a37f;">O</span>
+                                <span>OpenAI</span>
+                            </button>
+                            <button type="button" class="provider-option" data-provider="google" onclick="selectCourseProvider('google')">
+                                <span class="provider-icon" style="background: #4285f4;">G</span>
+                                <span>Google</span>
+                            </button>
+                        </div>
+
+                        <!-- Model Selection -->
+                        <div class="model-selector" id="course-model-selector">
+                            <!-- Models will be populated by JS -->
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color);">
+                        <label for="lms-course-id">Skilljar Course ID</label>
+                        <input type="text" id="lms-course-id" placeholder="e.g., crs_abc123">
+                        <p class="hint">Enter the Skilljar course ID to enable the chat widget on that course.</p>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveCourse()">Save Course Bot</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Keys Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal" style="max-width: 550px;">
+            <div class="modal-header">
+                <h2>API Keys</h2>
+                <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="hint" style="margin-bottom: 20px;">
+                    Add API keys for the AI providers you want to use. You'll select which provider to use when creating each course bot.
+                </p>
+
+                <!-- Anthropic API Key -->
+                <div class="form-group api-key-section">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span class="provider-icon" style="background: #D4A574; width: 28px; height: 28px; font-size: 14px;">A</span>
+                        <label style="margin-bottom: 0; font-weight: 600;">Anthropic (Claude)</label>
+                        <span class="status-badge" id="anthropic-key-status" style="display: none;">Connected</span>
+                    </div>
+                    <p class="hint" style="margin-bottom: 8px;">
+                        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">Get your API key →</a>
+                    </p>
+                    <input type="password" id="anthropic-api-key" placeholder="sk-ant-api03-...">
+                </div>
+
+                <!-- OpenAI API Key -->
+                <div class="form-group api-key-section">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span class="provider-icon" style="background: #10a37f; width: 28px; height: 28px; font-size: 14px;">O</span>
+                        <label style="margin-bottom: 0; font-weight: 600;">OpenAI (GPT)</label>
+                        <span class="status-badge" id="openai-key-status" style="display: none;">Connected</span>
+                    </div>
+                    <p class="hint" style="margin-bottom: 8px;">
+                        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Get your API key →</a>
+                    </p>
+                    <input type="password" id="openai-api-key" placeholder="sk-...">
+                </div>
+
+                <!-- Google API Key -->
+                <div class="form-group api-key-section">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span class="provider-icon" style="background: #4285f4; width: 28px; height: 28px; font-size: 14px;">G</span>
+                        <label style="margin-bottom: 0; font-weight: 600;">Google (Gemini)</label>
+                        <span class="status-badge" id="google-key-status" style="display: none;">Connected</span>
+                    </div>
+                    <p class="hint" style="margin-bottom: 8px;">
+                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get your API key →</a>
+                    </p>
+                    <input type="password" id="google-api-key" placeholder="AIza...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="settings-saved-msg" style="display: none; color: #059669; font-size: 14px; font-weight: 500;">✓ Keys saved</span>
+                <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveApiKeys()">Save API Keys</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Script Modal -->
+    <div class="modal-overlay" id="global-script-modal">
+        <div class="modal" style="max-width: 650px;">
+            <div class="modal-header">
+                <h2>Add to Skilljar</h2>
+                <button class="modal-close" onclick="closeGlobalScriptModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px; color: var(--text-secondary);">
+                    Add this script to your Skilljar <strong>Global Head Snippet</strong> (Settings → Themes → Global Head Snippet).
+                    You only need to do this once.
+                </p>
+
+                <div class="embed-code-container">
+                    <pre class="embed-code" id="global-script-code"></pre>
+                    <button class="copy-button" onclick="copyGlobalScript()">Copy</button>
+                </div>
+
+                <div style="margin-top: 20px; padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
+                    <p style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">How it works:</p>
+                    <ol style="font-size: 13px; color: var(--text-secondary); margin-left: 16px; line-height: 1.6;">
+                        <li>The script reads <code>skilljarCourse.id</code> on each course page</li>
+                        <li>It checks if you have a Course Bot with a matching Skilljar Course ID</li>
+                        <li>If found, a floating chat bubble appears in the corner</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeGlobalScriptModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Widget Style Modal -->
+    <div class="modal-overlay" id="widget-style-modal">
+        <div class="modal" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2>Widget Style</h2>
+                <button class="modal-close" onclick="closeWidgetStyleModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; color: var(--text-secondary);">
+                    These settings apply to all chat widgets across your courses.
+                </p>
+
+                <div style="display: grid; grid-template-columns: 1fr 340px; gap: 32px;">
+                    <!-- Settings Column -->
+                    <div>
+                        <!-- Theme Selector -->
+                        <div class="form-group">
+                            <label>Widget Theme</label>
+                            <div class="theme-selector" style="margin-top: 8px;">
+                                <button type="button" class="theme-option active" id="ws-theme-light" onclick="applyGlobalWidgetTheme('light')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="5"></circle>
+                                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                                    </svg>
+                                    Light
+                                </button>
+                                <button type="button" class="theme-option" id="ws-theme-dark" onclick="applyGlobalWidgetTheme('dark')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                                    </svg>
+                                    Dark
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Colors -->
+                        <div class="form-group">
+                            <label>Primary Color</label>
+                            <p class="hint">Header background and user message bubbles</p>
+                            <div class="color-input-wrapper" style="margin-top: 8px;">
+                                <input type="color" id="ws-color-primary" value="#0D2B3E">
+                                <input type="text" id="ws-color-primary-text" value="#0D2B3E">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Accent Color</label>
+                            <p class="hint">Icons and send button</p>
+                            <div class="color-input-wrapper" style="margin-top: 8px;">
+                                <input type="color" id="ws-color-accent" value="#5FCFB4">
+                                <input type="text" id="ws-color-accent-text" value="#5FCFB4">
+                            </div>
+                        </div>
+
+                        <!-- Corner Radius -->
+                        <div class="form-group">
+                            <label>Corner Radius</label>
+                            <p class="hint">How rounded buttons and bubbles look</p>
+                            <div style="display: flex; align-items: center; gap: 12px; margin-top: 8px;">
+                                <input type="range" id="ws-style-borderRadius" min="0" max="20" value="8" style="flex: 1;">
+                                <span id="ws-radius-value" style="font-family: monospace; color: var(--text-secondary);">8px</span>
+                            </div>
+                        </div>
+
+                        <!-- Position -->
+                        <div class="form-group">
+                            <label>Widget Position</label>
+                            <p class="hint">Where the chat bubble appears on the page</p>
+                            <div class="theme-selector" style="margin-top: 8px;">
+                                <button type="button" class="theme-option active" id="ws-position-right" onclick="setWidgetPosition('bottom-right')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="17" cy="17" r="3"></circle>
+                                    </svg>
+                                    Bottom Right
+                                </button>
+                                <button type="button" class="theme-option" id="ws-position-left" onclick="setWidgetPosition('bottom-left')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="7" cy="17" r="3"></circle>
+                                    </svg>
+                                    Bottom Left
+                                </button>
+                            </div>
+                        </div>
+
+                        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
+
+                        <!-- Text Labels -->
+                        <div class="form-group">
+                            <label for="ws-text-title">Widget Title</label>
+                            <input type="text" id="ws-text-title" placeholder="Course Assistant" value="Course Assistant">
+                        </div>
+                        <div class="form-group">
+                            <label for="ws-text-subtitle">Subtitle</label>
+                            <input type="text" id="ws-text-subtitle" placeholder="Ask questions about this course" value="Ask questions about this course">
+                        </div>
+                        <div class="form-group">
+                            <label for="ws-text-placeholder">Input Placeholder</label>
+                            <input type="text" id="ws-text-placeholder" placeholder="Type your question..." value="Type your question...">
+                        </div>
+                        <div class="form-group">
+                            <label for="ws-text-welcomeMessage">Welcome Message</label>
+                            <textarea id="ws-text-welcomeMessage" rows="2" placeholder="Welcome! I'm here to help...">Welcome! I'm here to help answer any questions you have about this course. What would you like to know?</textarea>
+                        </div>
+                    </div>
+
+                    <!-- Preview Column -->
+                    <div>
+                        <label style="display: block; margin-bottom: 12px;">Live Preview</label>
+                        <div class="preview-container">
+                            <div class="widget-preview" id="ws-widget-preview">
+                                <div class="preview-header" id="ws-preview-header">
+                                    <div class="preview-header-icon" id="ws-preview-header-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="preview-header-info">
+                                        <h4 id="ws-preview-title">Course Assistant</h4>
+                                        <p id="ws-preview-subtitle">Ask questions about this course</p>
+                                    </div>
+                                </div>
+                                <div class="preview-messages" id="ws-preview-messages">
+                                    <div class="preview-message assistant">
+                                        <div class="preview-message-avatar" id="ws-preview-bot-avatar">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                            </svg>
+                                        </div>
+                                        <div class="preview-message-content" id="ws-preview-assistant-msg">
+                                            Hello! How can I help you today?
+                                        </div>
+                                    </div>
+                                    <div class="preview-message user">
+                                        <div class="preview-message-content" id="ws-preview-user-msg">
+                                            What's covered in this module?
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="preview-input" id="ws-preview-input-container">
+                                    <div class="preview-input-field" id="ws-preview-input">Type your question...</div>
+                                    <button class="preview-send-btn" id="ws-preview-send-btn">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="widget-style-saved-msg" style="display: none; color: #059669; font-size: 14px; font-weight: 500;">✓ Style saved</span>
+                <button class="btn btn-secondary" onclick="closeWidgetStyleModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveWidgetStyle()">Save Style</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // Auto-detect the API URL from where the page is being served
+        const API_URL = window.location.origin;
+        let courses = [];
+
+        // Theme management
+        function getStoredTheme() {
+            return localStorage.getItem('admin-theme') || 'light';
+        }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('admin-theme', theme);
+            updateThemeUI(theme);
+        }
+
+        function updateThemeUI(theme) {
+            // Reserved for future admin theme toggle
+        }
+
+        // Initialize theme immediately to prevent flash
+        (function() {
+            const theme = getStoredTheme();
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+
+        // =====================
+        // LLM Models Configuration
+        // =====================
+        const providerModels = {
+            anthropic: [
+                { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Best balance of speed and intelligence', badge: 'recommended' },
+                { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fastest responses, lowest cost', badge: 'budget' },
+                { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: 'Most intelligent for complex tasks', badge: 'premium' },
+            ],
+            openai: [
+                { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable, multimodal flagship', badge: 'recommended' },
+                { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast and cost-effective', badge: 'budget' },
+                { id: 'o1', name: 'o1', description: 'Advanced reasoning for complex tasks', badge: 'premium' },
+            ],
+            google: [
+                { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fast multimodal with agentic capabilities', badge: 'recommended' },
+                { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Budget-friendly, 1M token context', badge: 'budget' },
+                { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Most capable for complex tasks', badge: 'premium' },
+            ],
+        };
+
+        // Track which providers have API keys configured
+        let configuredProviders = { anthropic: false, openai: false, google: false };
+
+        // =====================
+        // API Keys Management
+        // =====================
+        function openSettingsModal() {
+            loadApiKeys();
+            document.getElementById('settings-modal').classList.add('show');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settings-modal').classList.remove('show');
+            document.getElementById('settings-saved-msg').style.display = 'none';
+        }
+
+        async function loadApiKeys() {
+            try {
+                const response = await fetch(`${API_URL}/api/settings`, {
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    const settings = await response.json();
+                    // Update status badges based on which keys are configured
+                    configuredProviders = settings.configured_providers || { anthropic: false, openai: false, google: false };
+                    updateApiKeyStatus();
+                }
+            } catch (error) {
+                console.error('Failed to load API keys:', error);
+            }
+        }
+
+        function updateApiKeyStatus() {
+            ['anthropic', 'openai', 'google'].forEach(provider => {
+                const statusBadge = document.getElementById(`${provider}-key-status`);
+                if (statusBadge) {
+                    statusBadge.style.display = configuredProviders[provider] ? 'inline' : 'none';
+                }
+            });
+        }
+
+        async function saveApiKeys() {
+            const anthropicKey = document.getElementById('anthropic-api-key').value.trim();
+            const openaiKey = document.getElementById('openai-api-key').value.trim();
+            const googleKey = document.getElementById('google-api-key').value.trim();
+
+            const payload = {};
+            if (anthropicKey) payload.anthropic_api_key = anthropicKey;
+            if (openaiKey) payload.openai_api_key = openaiKey;
+            if (googleKey) payload.google_api_key = googleKey;
+
+            if (Object.keys(payload).length === 0) {
+                showToast('No API keys to save', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    // Clear input fields after save
+                    document.getElementById('anthropic-api-key').value = '';
+                    document.getElementById('openai-api-key').value = '';
+                    document.getElementById('google-api-key').value = '';
+
+                    // Reload to show updated status
+                    await loadApiKeys();
+
+                    document.getElementById('settings-saved-msg').style.display = 'inline';
+                    setTimeout(() => {
+                        document.getElementById('settings-saved-msg').style.display = 'none';
+                    }, 3000);
+                    showToast('API keys saved');
+                } else {
+                    showToast('Failed to save API keys', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to save API keys:', error);
+                showToast('Failed to save API keys', 'error');
+            }
+        }
+
+        // =====================
+        // Course LLM Selection
+        // =====================
+        let courseProvider = 'anthropic';
+        let courseModel = 'claude-sonnet-4-20250514';
+
+        function updateProviderAvailability() {
+            // Update provider buttons based on which have API keys configured
+            const providerButtons = document.querySelectorAll('#course-provider-selector .provider-option');
+            const availableProviders = [];
+
+            providerButtons.forEach(btn => {
+                const provider = btn.dataset.provider;
+                const hasKey = configuredProviders[provider];
+
+                btn.classList.toggle('disabled', !hasKey);
+
+                // Remove existing no-key label if any
+                const existingLabel = btn.querySelector('.no-key-label');
+                if (existingLabel) existingLabel.remove();
+
+                if (!hasKey) {
+                    const label = document.createElement('span');
+                    label.className = 'no-key-label';
+                    label.textContent = 'No API key';
+                    btn.appendChild(label);
+                } else {
+                    availableProviders.push(provider);
+                }
+            });
+
+            // Show warning if no providers available
+            const warning = document.getElementById('no-api-keys-warning');
+            const modelSelector = document.getElementById('course-model-selector');
+            if (availableProviders.length === 0) {
+                warning.style.display = 'block';
+                modelSelector.innerHTML = '';
+            } else {
+                warning.style.display = 'none';
+            }
+
+            return availableProviders;
+        }
+
+        function selectCourseProvider(provider) {
+            // Don't allow selecting disabled providers
+            if (!configuredProviders[provider]) return;
+
+            courseProvider = provider;
+            courseModel = providerModels[provider][0].id;
+
+            // Update provider buttons
+            document.querySelectorAll('#course-provider-selector .provider-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.provider === provider);
+            });
+
+            // Update model selector
+            renderCourseModelSelector();
+
+            // Update context usage (different providers have different limits)
+            updateContextUsage();
+        }
+
+        function selectCourseModel(modelId) {
+            courseModel = modelId;
+            document.querySelectorAll('#course-model-selector .model-option').forEach(opt => {
+                const input = opt.querySelector('input');
+                const isSelected = input && input.value === modelId;
+                opt.classList.toggle('active', isSelected);
+                if (input) input.checked = isSelected;
+            });
+        }
+
+        function renderCourseModelSelector() {
+            const container = document.getElementById('course-model-selector');
+            const models = providerModels[courseProvider];
+
+            container.innerHTML = models.map(m => `
+                <label class="model-option ${courseModel === m.id ? 'active' : ''}" onclick="selectCourseModel('${m.id}')">
+                    <input type="radio" name="course-model" value="${m.id}" ${courseModel === m.id ? 'checked' : ''}>
+                    <div class="model-info">
+                        <div class="model-name">
+                            ${m.name}
+                            <span class="model-badge ${m.badge}">${m.badge.charAt(0).toUpperCase() + m.badge.slice(1)}</span>
+                        </div>
+                        <div class="model-description">${m.description}</div>
+                    </div>
+                </label>
+            `).join('');
+        }
+
+        function initializeLLMSelector(preferredProvider, preferredModel) {
+            // Update UI for available providers
+            const availableProviders = updateProviderAvailability();
+
+            if (availableProviders.length === 0) {
+                // No providers available, clear selection
+                courseProvider = null;
+                courseModel = null;
+                return;
+            }
+
+            // If preferred provider is available, use it; otherwise use first available
+            if (preferredProvider && availableProviders.includes(preferredProvider)) {
+                courseProvider = preferredProvider;
+                courseModel = preferredModel || providerModels[preferredProvider][0].id;
+            } else {
+                courseProvider = availableProviders[0];
+                courseModel = providerModels[courseProvider][0].id;
+            }
+
+            // Update UI
+            document.querySelectorAll('#course-provider-selector .provider-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.provider === courseProvider);
+            });
+            renderCourseModelSelector();
+        }
+
+        // Global Script Modal
+        function openGlobalScriptModal() {
+            const scriptCode = `<script src="${API_URL}/widget-loader.js" data-api-url="${API_URL}"><\/script>`;
+            document.getElementById('global-script-code').textContent = scriptCode;
+            document.getElementById('global-script-modal').classList.add('show');
+        }
+
+        function closeGlobalScriptModal() {
+            document.getElementById('global-script-modal').classList.remove('show');
+        }
+
+        function copyGlobalScript() {
+            const code = document.getElementById('global-script-code').textContent;
+            navigator.clipboard.writeText(code)
+                .then(() => showToast('Copied to clipboard!'))
+                .catch(() => showToast('Failed to copy', 'error'));
+        }
+
+        // =====================
+        // Widget Style Modal
+        // =====================
+        let globalWidgetTheme = 'light';
+        let globalWidgetPosition = 'bottom-right';
+
+        const globalWidgetThemePresets = {
+            light: {
+                primary: "#0D2B3E",
+                accent: "#5FCFB4",
+                background: "#F8FAFC",
+                messageBg: "#FFFFFF",
+                messageText: "#334155"
+            },
+            dark: {
+                primary: "#1e293b",
+                accent: "#5FCFB4",
+                background: "#0f172a",
+                messageBg: "#1e293b",
+                messageText: "#e2e8f0"
+            }
+        };
+
+        function openWidgetStyleModal() {
+            loadWidgetStyle();
+            document.getElementById('widget-style-modal').classList.add('show');
+        }
+
+        function closeWidgetStyleModal() {
+            document.getElementById('widget-style-modal').classList.remove('show');
+            document.getElementById('widget-style-saved-msg').style.display = 'none';
+        }
+
+        async function loadWidgetStyle() {
+            try {
+                const response = await fetch(`${API_URL}/api/widget-style`, {
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    const style = await response.json();
+                    setGlobalWidgetStyle(style);
+                }
+            } catch (error) {
+                console.error('Failed to load widget style:', error);
+            }
+            // Always update preview
+            updateGlobalWidgetPreview();
+        }
+
+        function setGlobalWidgetStyle(style) {
+            const colors = style.colors || {};
+            const text = style.text || {};
+            const settings = style.style || {};
+
+            // Colors
+            document.getElementById('ws-color-primary').value = colors.primary || '#0D2B3E';
+            document.getElementById('ws-color-primary-text').value = colors.primary || '#0D2B3E';
+            document.getElementById('ws-color-accent').value = colors.accent || '#5FCFB4';
+            document.getElementById('ws-color-accent-text').value = colors.accent || '#5FCFB4';
+
+            // Style
+            document.getElementById('ws-style-borderRadius').value = settings.borderRadius || '8';
+            document.getElementById('ws-radius-value').textContent = (settings.borderRadius || '8') + 'px';
+
+            // Theme
+            globalWidgetTheme = settings.widgetTheme || 'light';
+            document.getElementById('ws-theme-light').classList.toggle('active', globalWidgetTheme === 'light');
+            document.getElementById('ws-theme-dark').classList.toggle('active', globalWidgetTheme === 'dark');
+
+            // Position
+            globalWidgetPosition = settings.position || 'bottom-right';
+            document.getElementById('ws-position-right').classList.toggle('active', globalWidgetPosition === 'bottom-right');
+            document.getElementById('ws-position-left').classList.toggle('active', globalWidgetPosition === 'bottom-left');
+
+            // Text
+            document.getElementById('ws-text-title').value = text.title || 'Course Assistant';
+            document.getElementById('ws-text-subtitle').value = text.subtitle || 'Ask questions about this course';
+            document.getElementById('ws-text-placeholder').value = text.placeholder || 'Type your question...';
+            document.getElementById('ws-text-welcomeMessage').value = text.welcomeMessage || 'Welcome! I\'m here to help answer any questions you have about this course.';
+
+            updateGlobalWidgetPreview();
+        }
+
+        function getGlobalWidgetStyle() {
+            const isDark = globalWidgetTheme === 'dark';
+            const primary = document.getElementById('ws-color-primary').value;
+            const background = isDark ? '#0f172a' : '#F8FAFC';
+
+            return {
+                colors: {
+                    primary: primary,
+                    accent: document.getElementById('ws-color-accent').value,
+                    background: background,
+                    messageBg: isDark ? primary : '#FFFFFF',
+                    messageText: isDark ? '#e2e8f0' : '#334155'
+                },
+                text: {
+                    title: document.getElementById('ws-text-title').value,
+                    subtitle: document.getElementById('ws-text-subtitle').value,
+                    placeholder: document.getElementById('ws-text-placeholder').value,
+                    welcomeMessage: document.getElementById('ws-text-welcomeMessage').value
+                },
+                style: {
+                    borderRadius: document.getElementById('ws-style-borderRadius').value,
+                    iconStyle: 'minimal',
+                    widgetTheme: globalWidgetTheme,
+                    position: globalWidgetPosition
+                }
+            };
+        }
+
+        function applyGlobalWidgetTheme(theme) {
+            globalWidgetTheme = theme;
+            const preset = globalWidgetThemePresets[theme];
+
+            document.getElementById('ws-theme-light').classList.toggle('active', theme === 'light');
+            document.getElementById('ws-theme-dark').classList.toggle('active', theme === 'dark');
+
+            document.getElementById('ws-color-primary').value = preset.primary;
+            document.getElementById('ws-color-primary-text').value = preset.primary;
+            document.getElementById('ws-color-accent').value = preset.accent;
+            document.getElementById('ws-color-accent-text').value = preset.accent;
+
+            updateGlobalWidgetPreview();
+        }
+
+        function setWidgetPosition(position) {
+            globalWidgetPosition = position;
+            document.getElementById('ws-position-right').classList.toggle('active', position === 'bottom-right');
+            document.getElementById('ws-position-left').classList.toggle('active', position === 'bottom-left');
+        }
+
+        function updateGlobalWidgetPreview() {
+            const primary = document.getElementById('ws-color-primary').value;
+            const accent = document.getElementById('ws-color-accent').value;
+            const radius = document.getElementById('ws-style-borderRadius').value + 'px';
+            const title = document.getElementById('ws-text-title').value || 'Course Assistant';
+            const subtitle = document.getElementById('ws-text-subtitle').value || 'Ask questions about this course';
+            const placeholder = document.getElementById('ws-text-placeholder').value || 'Type your question...';
+
+            document.getElementById('ws-radius-value').textContent = radius;
+
+            const isDark = globalWidgetTheme === 'dark';
+            const background = isDark ? '#0f172a' : '#F8FAFC';
+            const messageBg = isDark ? primary : '#ffffff';
+            const messageText = isDark ? '#e2e8f0' : '#334155';
+            const borderColor = isDark ? '#475569' : '#e2e8f0';
+
+            // Header
+            document.getElementById('ws-preview-header').style.background = primary;
+            document.getElementById('ws-preview-header-icon').style.background = accent;
+            document.getElementById('ws-preview-header-icon').style.borderRadius = radius;
+            document.getElementById('ws-preview-header-icon').querySelector('svg').style.stroke = primary;
+            document.getElementById('ws-preview-title').textContent = title;
+            document.getElementById('ws-preview-subtitle').textContent = subtitle;
+
+            // Messages area
+            document.getElementById('ws-preview-messages').style.background = background;
+            document.getElementById('ws-preview-bot-avatar').style.background = accent;
+            document.getElementById('ws-preview-bot-avatar').style.borderRadius = radius;
+            document.getElementById('ws-preview-bot-avatar').querySelector('svg').style.stroke = primary;
+
+            // Assistant message
+            const assistantMsg = document.getElementById('ws-preview-assistant-msg');
+            assistantMsg.style.borderRadius = radius;
+            assistantMsg.style.color = messageText;
+            assistantMsg.style.background = messageBg;
+            assistantMsg.style.borderColor = borderColor;
+
+            // User message
+            document.getElementById('ws-preview-user-msg').style.background = primary;
+            document.getElementById('ws-preview-user-msg').style.borderRadius = radius;
+
+            // Input area
+            const previewInput = document.getElementById('ws-preview-input');
+            previewInput.textContent = placeholder;
+            previewInput.style.borderRadius = radius;
+            previewInput.style.background = messageBg;
+            previewInput.style.borderColor = borderColor;
+
+            // Input container
+            const inputContainer = document.getElementById('ws-preview-input-container');
+            inputContainer.style.background = messageBg;
+            inputContainer.style.borderColor = borderColor;
+
+            // Send button
+            document.getElementById('ws-preview-send-btn').style.background = accent;
+            document.getElementById('ws-preview-send-btn').style.borderRadius = radius;
+            document.getElementById('ws-preview-send-btn').querySelector('svg').style.stroke = primary;
+
+            // Widget container
+            document.getElementById('ws-widget-preview').style.background = messageBg;
+        }
+
+        async function saveWidgetStyle() {
+            const style = getGlobalWidgetStyle();
+
+            try {
+                const response = await fetch(`${API_URL}/api/widget-style`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(style)
+                });
+
+                if (response.ok) {
+                    document.getElementById('widget-style-saved-msg').style.display = 'inline';
+                    setTimeout(() => {
+                        document.getElementById('widget-style-saved-msg').style.display = 'none';
+                    }, 3000);
+                    showToast('Widget style saved');
+                } else {
+                    showToast('Failed to save widget style', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to save widget style:', error);
+                showToast('Failed to save widget style', 'error');
+            }
+        }
+
+        // Setup widget style color pickers and inputs
+        function setupWidgetStyleInputs() {
+            ['primary', 'accent'].forEach(color => {
+                const picker = document.getElementById(`ws-color-${color}`);
+                const text = document.getElementById(`ws-color-${color}-text`);
+
+                if (picker && text) {
+                    picker.addEventListener('input', () => {
+                        text.value = picker.value;
+                        updateGlobalWidgetPreview();
+                    });
+                    text.addEventListener('input', () => {
+                        if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) {
+                            picker.value = text.value;
+                            updateGlobalWidgetPreview();
+                        }
+                    });
+                }
+            });
+
+            const radiusSlider = document.getElementById('ws-style-borderRadius');
+            if (radiusSlider) {
+                radiusSlider.addEventListener('input', updateGlobalWidgetPreview);
+            }
+
+            ['ws-text-title', 'ws-text-subtitle', 'ws-text-placeholder'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', updateGlobalWidgetPreview);
+            });
+        }
+
+
+        // File upload elements
+        const fileInput = document.getElementById('file-input');
+        const fileUploadArea = document.getElementById('file-upload-area');
+        const courseContent = document.getElementById('course-content');
+
+        // Track uploaded files
+        let uploadedFiles = []; // Array of { filename, text, wordCount }
+
+        // Context window limits by provider (in tokens, ~4 chars per token)
+        const contextLimits = {
+            anthropic: 200000,  // Claude models
+            openai: 128000,     // GPT-4o
+            google: 1000000     // Gemini 1.5
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize theme UI after DOM is ready
+            updateThemeUI(getStoredTheme());
+
+            loadCourses();
+            setupFileUpload();
+            setupWidgetStyleInputs();
+            setupContextUsageTracking();
+        });
+
+        function setupFileUpload() {
+            fileUploadArea.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'A') fileInput.click();
+            });
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleMultipleFiles(Array.from(e.target.files));
+                }
+            });
+            fileUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.add('dragover');
+            });
+            fileUploadArea.addEventListener('dragleave', () => fileUploadArea.classList.remove('dragover'));
+            fileUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUploadArea.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    handleMultipleFiles(Array.from(e.dataTransfer.files));
+                }
+            });
+        }
+
+        async function handleMultipleFiles(files) {
+            const allowedTypes = ['.pdf', '.docx', '.txt', '.md'];
+
+            for (const file of files) {
+                const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+                if (!allowedTypes.includes(fileExt)) {
+                    showToast(`Skipped ${file.name}: unsupported type`, 'error');
+                    continue;
+                }
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast(`Skipped ${file.name}: too large`, 'error');
+                    continue;
+                }
+
+                // Check if file already uploaded
+                if (uploadedFiles.some(f => f.filename === file.name)) {
+                    showToast(`${file.name} already added`, 'error');
+                    continue;
+                }
+
+                await handleSingleFileUpload(file);
+            }
+
+            fileInput.value = '';
+        }
+
+        async function handleSingleFileUpload(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                fileUploadArea.classList.add('loading');
+                const response = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
+                if (!response.ok) throw new Error((await response.json()).detail || 'Upload failed');
+                const data = await response.json();
+
+                // Add to uploaded files list
+                uploadedFiles.push({
+                    filename: data.filename,
+                    text: data.text,
+                    wordCount: data.word_count
+                });
+
+                // Update the combined content
+                updateCombinedContent();
+                renderUploadedFilesList();
+                showToast(`${data.filename} uploaded`);
+            } catch (error) {
+                showToast(error.message, 'error');
+            } finally {
+                fileUploadArea.classList.remove('loading');
+            }
+        }
+
+        function updateCombinedContent() {
+            if (uploadedFiles.length === 0) {
+                courseContent.value = '';
+            } else if (uploadedFiles.length === 1) {
+                courseContent.value = uploadedFiles[0].text;
+            } else {
+                // Combine multiple files with headers
+                courseContent.value = uploadedFiles.map(f =>
+                    `--- ${f.filename} ---\n\n${f.text}`
+                ).join('\n\n\n');
+            }
+            updateContextUsage();
+        }
+
+        function renderUploadedFilesList() {
+            const listContainer = document.getElementById('uploaded-files-list');
+            const itemsContainer = document.getElementById('uploaded-files-items');
+
+            if (uploadedFiles.length === 0) {
+                listContainer.style.display = 'none';
+                return;
+            }
+
+            listContainer.style.display = 'block';
+            itemsContainer.innerHTML = uploadedFiles.map((file, index) => `
+                <div class="uploaded-file-item">
+                    <span class="file-icon">📄</span>
+                    <span class="file-name">${escapeHtml(file.filename)}</span>
+                    <span class="file-stats">${file.wordCount.toLocaleString()} words</span>
+                    <span class="file-remove" onclick="removeFile(${index})">✕</span>
+                </div>
+            `).join('');
+        }
+
+        function removeFile(index) {
+            uploadedFiles.splice(index, 1);
+            updateCombinedContent();
+            renderUploadedFilesList();
+        }
+
+        function clearAllFiles() {
+            uploadedFiles = [];
+            updateCombinedContent();
+            renderUploadedFilesList();
+            fileInput.value = '';
+        }
+
+        // Context usage tracking
+        function setupContextUsageTracking() {
+            courseContent.addEventListener('input', updateContextUsage);
+        }
+
+        function updateContextUsage() {
+            const indicator = document.getElementById('context-usage-indicator');
+            const bar = document.getElementById('context-usage-bar');
+            const text = document.getElementById('context-usage-text');
+            const warning = document.getElementById('context-usage-warning');
+
+            const content = courseContent.value;
+            if (!content || content.length < 100) {
+                indicator.style.display = 'none';
+                return;
+            }
+
+            indicator.style.display = 'block';
+
+            // Estimate tokens (~4 chars per token is a rough estimate)
+            const estimatedTokens = Math.ceil(content.length / 4);
+            const contextLimit = contextLimits[courseProvider] || 200000;
+
+            // Reserve ~20% for conversation and response
+            const usableLimit = contextLimit * 0.8;
+            const percentage = Math.min((estimatedTokens / usableLimit) * 100, 100);
+
+            // Format numbers
+            const tokensK = (estimatedTokens / 1000).toFixed(0);
+            const limitK = (usableLimit / 1000).toFixed(0);
+
+            text.textContent = `~${tokensK}K / ${limitK}K tokens (${percentage.toFixed(0)}%)`;
+            bar.style.width = `${percentage}%`;
+
+            // Color coding
+            if (percentage > 90) {
+                bar.style.background = '#ef4444'; // Red
+                warning.style.display = 'block';
+                warning.style.color = '#dc2626';
+                warning.textContent = '⚠️ Content is very large. Consider trimming for better AI performance.';
+            } else if (percentage > 70) {
+                bar.style.background = '#f59e0b'; // Yellow
+                warning.style.display = 'block';
+                warning.style.color = '#d97706';
+                warning.textContent = '⚡ Large content may slow responses. This is usually fine.';
+            } else if (percentage > 50) {
+                bar.style.background = '#5FCFB4'; // Teal (accent)
+                warning.style.display = 'none';
+            } else {
+                bar.style.background = '#22c55e'; // Green
+                warning.style.display = 'none';
+            }
+        }
+
+        async function loadCourses() {
+            try {
+                const response = await fetch(`${API_URL}/api/courses`);
+                courses = await response.json();
+                renderCourses();
+            } catch (error) {
+                showToast('Failed to load courses', 'error');
+            }
+        }
+
+        function renderCourses() {
+            const container = document.getElementById('courses-container');
+            if (courses.length === 0) {
+                container.innerHTML = `<div class="empty-state"><h2>No course bots yet</h2><p>Create your first course bot to get started.</p><button class="btn btn-primary" onclick="openCreateModal()">+ Create Course Bot</button></div>`;
+                return;
+            }
+            container.innerHTML = `<div class="courses-grid">${courses.map(course => `
+                <div class="course-card">
+                    <div class="course-card-header">
+                        <h3>${escapeHtml(course.name)}</h3>
+                        <p>${escapeHtml(course.description || 'No description')}</p>
+                    </div>
+                    <div class="course-card-body">
+                        <div class="course-card-meta">
+                            <span>📝 ${course.content.length.toLocaleString()} chars</span>
+                            ${course.lms_course_id ? `<span style="color: var(--accent);">✓ Skilljar: ${escapeHtml(course.lms_course_id)}</span>` : '<span style="color: var(--text-muted);">No Skilljar ID</span>'}
+                        </div>
+                        <div class="course-card-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="openEditModal('${course.id}')">Edit</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteCourse('${course.id}')">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}</div>`;
+        }
+
+        async function openCreateModal() {
+            document.getElementById('modal-title').textContent = 'Create Course Bot';
+            document.getElementById('course-form').reset();
+            document.getElementById('course-id').value = '';
+            document.getElementById('lms-course-id').value = '';
+            document.querySelector('.file-upload-content').style.display = 'flex';
+            fileInput.value = '';
+
+            // Reset uploaded files state
+            uploadedFiles = [];
+            renderUploadedFilesList();
+            document.getElementById('context-usage-indicator').style.display = 'none';
+
+            // Load API key status and initialize LLM selector
+            await loadApiKeys();
+            initializeLLMSelector('anthropic', 'claude-sonnet-4-20250514');
+
+            document.getElementById('course-modal').classList.add('show');
+        }
+
+        async function openEditModal(courseId) {
+            const course = courses.find(c => c.id === courseId);
+            if (!course) return;
+            document.getElementById('modal-title').textContent = 'Edit Course Bot';
+            document.getElementById('course-id').value = course.id;
+            document.getElementById('course-name').value = course.name;
+            document.getElementById('course-description').value = course.description || '';
+            document.getElementById('course-content').value = course.content;
+            document.getElementById('system-prompt').value = course.system_prompt || '';
+            document.getElementById('lms-course-id').value = course.lms_course_id || '';
+            document.querySelector('.file-upload-content').style.display = 'flex';
+            fileInput.value = '';
+
+            // Reset uploaded files state (editing loads content directly into textarea)
+            uploadedFiles = [];
+            renderUploadedFilesList();
+
+            // Load API key status and initialize LLM selector with course's saved values
+            await loadApiKeys();
+            initializeLLMSelector(course.llm_provider || 'anthropic', course.llm_model);
+
+            // Update context usage for existing content
+            updateContextUsage();
+
+            document.getElementById('course-modal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('course-modal').classList.remove('show');
+        }
+
+        async function saveCourse() {
+            const id = document.getElementById('course-id').value;
+            const lmsCourseId = document.getElementById('lms-course-id').value.trim();
+            const data = {
+                name: document.getElementById('course-name').value,
+                description: document.getElementById('course-description').value,
+                content: document.getElementById('course-content').value,
+                system_prompt: document.getElementById('system-prompt').value,
+                lms_course_id: lmsCourseId || null,
+                llm_provider: courseProvider,
+                llm_model: courseModel
+            };
+            if (!data.name || !data.content) {
+                showToast('Please fill in required fields', 'error');
+                return;
+            }
+            if (!courseProvider || !courseModel) {
+                showToast('Please configure API keys first', 'error');
+                return;
+            }
+            try {
+                const url = id ? `${API_URL}/api/courses/${id}` : `${API_URL}/api/courses`;
+                const response = await fetch(url, {
+                    method: id ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (!response.ok) throw new Error('Failed to save');
+                closeModal();
+                await loadCourses();
+                showToast(id ? 'Course updated!' : 'Course created!');
+            } catch (error) {
+                showToast('Failed to save course', 'error');
+            }
+        }
+
+        async function deleteCourse(courseId) {
+            if (!confirm('Delete this course bot?')) return;
+            try {
+                await fetch(`${API_URL}/api/courses/${courseId}`, { method: 'DELETE' });
+                await loadCourses();
+                showToast('Course deleted!');
+            } catch (error) {
+                showToast('Failed to delete', 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show' + (type === 'error' ? ' error' : '');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

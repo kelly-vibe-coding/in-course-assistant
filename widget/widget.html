@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-width: 100%;
+            background: white;
+        }
+
+        .chat-header {
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-header-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-header-icon svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        .chat-header-info h1 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .chat-header-info p {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            max-width: 88%;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .message-avatar svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .message.user .message-avatar {
+            background: #cbd5e1;
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .message.user .message-content {
+            color: white;
+        }
+
+        .chat-input-container {
+            padding: 16px 20px;
+            border-top: 1px solid #e2e8f0;
+            background: white;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            border: 1px solid #e2e8f0;
+            padding: 12px 16px;
+            font-size: 14px;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(95, 207, 180, 0.1);
+        }
+
+        .send-button {
+            width: 44px;
+            height: 44px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.2s;
+        }
+
+        .send-button:hover {
+            opacity: 0.9;
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .send-button svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            width: fit-content;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: #94a3b8;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-4px); }
+        }
+
+        .welcome-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+
+        .welcome-message h2 {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .error-banner {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px 16px;
+            margin: 0 20px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .error-banner.show { display: block; }
+
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+        /* Markdown styling */
+        .message-content p { margin: 0 0 12px 0; }
+        .message-content p:last-child { margin-bottom: 0; }
+        .message-content strong { font-weight: 600; }
+        .message-content em { font-style: italic; }
+        .message-content code {
+            background: rgba(0,0,0,0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .message-content pre {
+            background: rgba(0,0,0,0.06);
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .message-content pre code {
+            background: none;
+            padding: 0;
+        }
+        .message-content ul, .message-content ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+        .message-content li { margin: 4px 0; }
+        .message-content h1, .message-content h2, .message-content h3 {
+            margin: 16px 0 8px 0;
+            font-weight: 600;
+        }
+        .message-content h1 { font-size: 18px; }
+        .message-content h2 { font-size: 16px; }
+        .message-content h3 { font-size: 15px; }
+        .message-content blockquote {
+            border-left: 3px solid #cbd5e1;
+            margin: 12px 0;
+            padding-left: 12px;
+            color: #64748b;
+        }
+
+        .loading-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #64748b;
+        }
+
+        /* Suggested Questions */
+        .suggestions-container {
+            padding: 16px 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .suggestions-label {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .suggestions-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .suggestion-chip {
+            padding: 8px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            background: white;
+            font-size: 13px;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s;
+            max-width: 100%;
+            text-align: left;
+        }
+
+        .suggestion-chip:hover {
+            border-color: var(--accent-color);
+            background: #f8fafc;
+        }
+
+        .suggestions-loading {
+            display: flex;
+            gap: 8px;
+        }
+
+        .suggestions-loading .skeleton {
+            height: 36px;
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 20px;
+        }
+
+        .suggestions-loading .skeleton:nth-child(1) { width: 140px; }
+        .suggestions-loading .skeleton:nth-child(2) { width: 180px; }
+        .suggestions-loading .skeleton:nth-child(3) { width: 120px; }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading-screen">Loading...</div>
+    
+    <div class="chat-container" id="chat-container" style="display: none;">
+        <div class="chat-header" id="chat-header">
+            <div class="chat-header-icon" id="header-icon"></div>
+            <div class="chat-header-info">
+                <h1 id="header-title">Course Assistant</h1>
+                <p id="header-subtitle">Ask questions about this course</p>
+            </div>
+        </div>
+
+        <div class="error-banner" id="error-banner"></div>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="welcome-message" id="welcome-message">
+                <h2>👋 Welcome!</h2>
+                <p id="welcome-text">I'm here to help you with any questions about this course.</p>
+            </div>
+        </div>
+
+        <div class="suggestions-container" id="suggestions-container">
+            <div class="suggestions-label">Try asking:</div>
+            <div class="suggestions-list" id="suggestions-list">
+                <div class="suggestions-loading">
+                    <div class="skeleton"></div>
+                    <div class="skeleton"></div>
+                    <div class="skeleton"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <input type="text" class="chat-input" id="chat-input" placeholder="Type your question...">
+                <button class="send-button" id="send-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const courseId = urlParams.get('course_id');
+        const apiUrl = urlParams.get('api_url') || 'http://localhost:8000';
+
+        let conversationHistory = [];
+        let isLoading = false;
+        let config = null;
+
+        const defaultConfig = {
+            colors: {
+                primary: "#0D2B3E",
+                accent: "#5FCFB4",
+                background: "#F8FAFC",
+                messageBg: "#FFFFFF",
+                messageText: "#334155"
+            },
+            text: {
+                title: "Course Assistant",
+                subtitle: "Ask questions about this course",
+                placeholder: "Type your question...",
+                welcomeMessage: "Welcome! I'm here to help answer any questions you have about this course."
+            },
+            style: {
+                borderRadius: "8",
+                iconStyle: "minimal"
+            }
+        };
+
+        const icons = {
+            chat: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+            help: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+            user: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`
+        };
+
+        const loadingEl = document.getElementById('loading');
+        const chatContainer = document.getElementById('chat-container');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+        const headerTitle = document.getElementById('header-title');
+        const headerSubtitle = document.getElementById('header-subtitle');
+        const headerIcon = document.getElementById('header-icon');
+        const chatHeader = document.getElementById('chat-header');
+        const welcomeMessage = document.getElementById('welcome-message');
+        const welcomeText = document.getElementById('welcome-text');
+        const errorBanner = document.getElementById('error-banner');
+        const suggestionsContainer = document.getElementById('suggestions-container');
+        const suggestionsList = document.getElementById('suggestions-list');
+
+        // Feature flags
+        const useStreaming = true; // Enable streaming responses
+
+        async function init() {
+            if (!courseId) {
+                showError('No course ID provided.');
+                loadingEl.style.display = 'none';
+                chatContainer.style.display = 'flex';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${apiUrl}/api/widget/${courseId}`);
+                if (!response.ok) throw new Error('Course not found');
+                
+                const data = await response.json();
+                config = { ...defaultConfig };
+                
+                if (data.config) {
+                    config.colors = { ...defaultConfig.colors, ...data.config.colors };
+                    config.text = { ...defaultConfig.text, ...data.config.text };
+                    config.style = { ...defaultConfig.style, ...data.config.style };
+                }
+                
+                applyConfig();
+                loadingEl.style.display = 'none';
+                chatContainer.style.display = 'flex';
+
+                // Load suggested questions (non-blocking)
+                loadSuggestions();
+            } catch (error) {
+                config = defaultConfig;
+                applyConfig();
+                loadingEl.style.display = 'none';
+                chatContainer.style.display = 'flex';
+                showError('Failed to load course configuration.');
+            }
+        }
+
+        async function loadSuggestions() {
+            try {
+                const response = await fetch(`${apiUrl}/api/courses/${courseId}/suggestions`);
+                if (!response.ok) throw new Error('Failed to load suggestions');
+
+                const data = await response.json();
+                displaySuggestions(data.suggestions || []);
+            } catch (error) {
+                // Hide suggestions on error - not critical
+                suggestionsContainer.style.display = 'none';
+            }
+        }
+
+        function displaySuggestions(suggestions) {
+            if (!suggestions.length) {
+                suggestionsContainer.style.display = 'none';
+                return;
+            }
+
+            const { colors, radius, isDark, messageBg, borderColor } = window.widgetConfig;
+
+            // Update label color for dark mode
+            const label = suggestionsContainer.querySelector('.suggestions-label');
+            if (label) {
+                label.style.color = isDark ? '#94a3b8' : '#64748b';
+            }
+
+            // Update container background
+            suggestionsContainer.style.background = isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)';
+            suggestionsContainer.style.borderTop = `1px solid ${borderColor}`;
+
+            suggestionsList.innerHTML = suggestions.map(q => `
+                <button class="suggestion-chip" style="
+                    background: ${messageBg};
+                    border-color: ${borderColor};
+                    color: ${isDark ? '#e2e8f0' : '#475569'};
+                    border-radius: 20px;
+                ">${escapeHtml(q)}</button>
+            `).join('');
+
+            // Add click handlers
+            suggestionsList.querySelectorAll('.suggestion-chip').forEach(chip => {
+                chip.addEventListener('click', () => {
+                    const question = chip.textContent;
+                    chatInput.value = question;
+                    hideSuggestions();
+                    sendMessage();
+                });
+            });
+        }
+
+        function hideSuggestions() {
+            suggestionsContainer.style.display = 'none';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function applyConfig() {
+            const { colors, text, style } = config;
+            const radius = style.borderRadius + 'px';
+
+            // Detect dark mode based on background color
+            const isDark = isColorDark(colors.background);
+            const messageBg = colors.messageBg || (isDark ? colors.primary : '#ffffff');
+            const borderColor = isDark ? '#475569' : '#e2e8f0';
+
+            document.documentElement.style.setProperty('--accent-color', colors.accent);
+            document.documentElement.style.setProperty('--border-color', borderColor);
+            document.documentElement.style.setProperty('--message-bg', messageBg);
+
+            chatHeader.style.background = colors.primary;
+            headerIcon.style.background = colors.accent;
+            headerIcon.style.borderRadius = radius;
+            headerIcon.innerHTML = icons.chat;
+            headerIcon.querySelector('svg').style.stroke = colors.primary;
+            headerTitle.textContent = text.title;
+            headerSubtitle.textContent = text.subtitle;
+
+            chatMessages.style.background = colors.background;
+            welcomeText.textContent = text.welcomeMessage;
+            
+            // Welcome message styling for dark mode
+            const welcomeH2 = document.querySelector('.welcome-message h2');
+            if (welcomeH2) welcomeH2.style.color = isDark ? '#e2e8f0' : '#1e293b';
+            if (welcomeText) welcomeText.style.color = isDark ? '#94a3b8' : '#64748b';
+
+            // Input area styling
+            chatInput.placeholder = text.placeholder;
+            chatInput.style.borderRadius = radius;
+            chatInput.style.background = messageBg;
+            chatInput.style.borderColor = borderColor;
+            chatInput.style.color = colors.messageText;
+            
+            // Input container
+            const inputContainer = document.querySelector('.chat-input-container');
+            if (inputContainer) {
+                inputContainer.style.background = messageBg;
+                inputContainer.style.borderColor = borderColor;
+            }
+
+            sendButton.style.background = colors.accent;
+            sendButton.style.borderRadius = radius;
+            sendButton.querySelector('svg').style.stroke = colors.primary;
+
+            errorBanner.style.borderRadius = radius;
+
+            window.widgetConfig = { colors, style, radius, isDark, messageBg, borderColor };
+        }
+
+        // Helper to determine if a color is dark
+        function isColorDark(hexColor) {
+            const hex = hexColor.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+            return brightness < 128;
+        }
+
+        // Simple markdown parser
+        function parseMarkdown(text) {
+            if (!text) return '';
+
+            let html = text;
+
+            // Escape HTML first
+            html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            // Code blocks (```code```)
+            html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+
+            // Inline code (`code`)
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Headers
+            html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+            // Bold (**text** or __text__)
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+            // Italic (*text* or _text_)
+            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+            // Blockquotes
+            html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+            // Unordered lists
+            html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+            // Ordered lists
+            html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+            // Paragraphs - wrap text blocks
+            html = html.split(/\n\n+/).map(block => {
+                block = block.trim();
+                if (!block) return '';
+                // Don't wrap if already wrapped in a block element
+                if (block.match(/^<(h[1-6]|ul|ol|li|pre|blockquote)/)) return block;
+                return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+            }).join('');
+
+            return html;
+        }
+
+        function showError(message) {
+            errorBanner.textContent = message;
+            errorBanner.classList.add('show');
+        }
+
+        function hideError() {
+            errorBanner.classList.remove('show');
+        }
+
+        function addMessage(content, role) {
+            if (welcomeMessage) welcomeMessage.style.display = 'none';
+
+            const { colors, radius, isDark, messageBg, borderColor } = window.widgetConfig;
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.style.borderRadius = radius;
+
+            if (role === 'assistant') {
+                avatar.style.background = colors.accent;
+                avatar.innerHTML = icons.help;
+                avatar.querySelector('svg').style.stroke = colors.primary;
+            } else {
+                avatar.innerHTML = icons.user;
+                avatar.querySelector('svg').style.stroke = isDark ? '#94a3b8' : '#475569';
+                avatar.style.background = isDark ? '#475569' : '#cbd5e1';
+            }
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            // Use markdown parsing for assistant messages, simple escaping for user messages
+            contentDiv.innerHTML = role === 'assistant' ? parseMarkdown(content) : escapeHtml(content).replace(/\n/g, '<br>');
+
+            if (role === 'assistant') {
+                contentDiv.style.background = messageBg;
+                contentDiv.style.borderColor = borderColor;
+                contentDiv.style.borderRadius = radius;
+                contentDiv.style.borderTopLeftRadius = '2px';
+                contentDiv.style.color = colors.messageText;
+            } else {
+                contentDiv.style.background = colors.primary;
+                contentDiv.style.borderRadius = radius;
+                contentDiv.style.borderTopRightRadius = '2px';
+            }
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+            chatMessages.appendChild(messageDiv);
+
+            scrollToBottom();
+
+            return contentDiv; // Return for streaming updates
+        }
+
+        function createStreamingMessage() {
+            // Create an empty assistant message for streaming
+            if (welcomeMessage) welcomeMessage.style.display = 'none';
+
+            const { colors, radius, isDark, messageBg, borderColor } = window.widgetConfig;
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant';
+            messageDiv.id = 'streaming-message';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.style.borderRadius = radius;
+            avatar.style.background = colors.accent;
+            avatar.innerHTML = icons.help;
+            avatar.querySelector('svg').style.stroke = colors.primary;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.id = 'streaming-content';
+            contentDiv.style.background = messageBg;
+            contentDiv.style.borderColor = borderColor;
+            contentDiv.style.borderRadius = radius;
+            contentDiv.style.borderTopLeftRadius = '2px';
+            contentDiv.style.color = colors.messageText;
+            contentDiv.innerHTML = '<span class="cursor">▋</span>';
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+            chatMessages.appendChild(messageDiv);
+
+            scrollToBottom();
+            return contentDiv;
+        }
+
+        function updateStreamingMessage(contentDiv, text) {
+            contentDiv.innerHTML = parseMarkdown(text) + '<span class="cursor" style="opacity: 0.5;">▋</span>';
+            scrollToBottom();
+        }
+
+        function finalizeStreamingMessage(contentDiv, text) {
+            contentDiv.innerHTML = parseMarkdown(text);
+            const streamingMessage = document.getElementById('streaming-message');
+            if (streamingMessage) {
+                streamingMessage.removeAttribute('id');
+            }
+        }
+
+        function showTypingIndicator() {
+            const { colors, radius, messageBg, borderColor } = window.widgetConfig;
+            
+            const indicator = document.createElement('div');
+            indicator.className = 'message assistant';
+            indicator.id = 'typing-indicator';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.style.background = colors.accent;
+            avatar.style.borderRadius = radius;
+            avatar.innerHTML = icons.help;
+            avatar.querySelector('svg').style.stroke = colors.primary;
+            
+            const typing = document.createElement('div');
+            typing.className = 'typing-indicator';
+            typing.style.borderRadius = radius;
+            typing.style.background = messageBg;
+            typing.style.borderColor = borderColor;
+            typing.innerHTML = '<span></span><span></span><span></span>';
+            
+            indicator.appendChild(avatar);
+            indicator.appendChild(typing);
+            chatMessages.appendChild(indicator);
+            
+            scrollToBottom();
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || isLoading) return;
+
+            hideError();
+            hideSuggestions();
+            isLoading = true;
+            sendButton.disabled = true;
+            chatInput.value = '';
+
+            addMessage(message, 'user');
+            conversationHistory.push({ role: 'user', content: message });
+
+            if (useStreaming) {
+                await sendMessageStreaming(message);
+            } else {
+                await sendMessageNonStreaming(message);
+            }
+        }
+
+        async function sendMessageStreaming(message) {
+            const contentDiv = createStreamingMessage();
+            let fullResponse = '';
+
+            try {
+                const response = await fetch(`${apiUrl}/api/chat/stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        course_id: courseId,
+                        message: message,
+                        conversation_history: conversationHistory.slice(0, -1)
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to get response');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+
+                                if (data.error) {
+                                    throw new Error(data.error);
+                                }
+
+                                if (data.text) {
+                                    fullResponse += data.text;
+                                    updateStreamingMessage(contentDiv, fullResponse);
+                                }
+
+                                if (data.done) {
+                                    finalizeStreamingMessage(contentDiv, fullResponse);
+                                    conversationHistory.push({ role: 'assistant', content: fullResponse });
+                                }
+                            } catch (e) {
+                                // Skip invalid JSON lines
+                                if (e.message && !e.message.includes('JSON')) {
+                                    throw e;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Ensure message is finalized even if no 'done' signal
+                if (fullResponse) {
+                    finalizeStreamingMessage(contentDiv, fullResponse);
+                    if (!conversationHistory.find(m => m.content === fullResponse)) {
+                        conversationHistory.push({ role: 'assistant', content: fullResponse });
+                    }
+                }
+
+            } catch (error) {
+                // Remove the streaming message on error
+                const streamingMessage = document.getElementById('streaming-message');
+                if (streamingMessage) streamingMessage.remove();
+
+                showError(error.message || 'Something went wrong.');
+                conversationHistory.pop();
+            } finally {
+                isLoading = false;
+                sendButton.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        async function sendMessageNonStreaming(message) {
+            showTypingIndicator();
+
+            try {
+                const response = await fetch(`${apiUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        course_id: courseId,
+                        message: message,
+                        conversation_history: conversationHistory.slice(0, -1)
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to get response');
+                }
+
+                const data = await response.json();
+                hideTypingIndicator();
+                addMessage(data.response, 'assistant');
+                conversationHistory.push({ role: 'assistant', content: data.response });
+
+            } catch (error) {
+                hideTypingIndicator();
+                showError(error.message || 'Something went wrong.');
+                conversationHistory.pop();
+            } finally {
+                isLoading = false;
+                sendButton.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        sendButton.addEventListener('click', sendMessage);
+
+        init();
+    </script>
+</body>
+</html>
