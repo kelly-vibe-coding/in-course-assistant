@@ -104,3 +104,24 @@ def get_db():
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+
+    # Run migrations for existing databases
+    _run_migrations()
+
+
+def _run_migrations():
+    """Run database migrations for schema changes."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+
+    # Check if courses table exists
+    if 'courses' in inspector.get_table_names():
+        columns = [col['name'] for col in inspector.get_columns('courses')]
+
+        # Migration: Add is_active column if it doesn't exist
+        if 'is_active' not in columns:
+            with engine.connect() as conn:
+                conn.execute(text('ALTER TABLE courses ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL'))
+                conn.commit()
+                print("Migration: Added is_active column to courses table")
