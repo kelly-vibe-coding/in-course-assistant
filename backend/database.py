@@ -89,6 +89,7 @@ class Course(Base):
     lms_course_id = Column(String(255), nullable=True, index=True)  # External LMS course ID (Skilljar, etc.)
     llm_provider = Column(String(50), nullable=True)  # anthropic, openai, google - null means use global default
     llm_model = Column(String(100), nullable=True)  # specific model ID - null means use provider default
+    is_active = Column(Boolean, nullable=False, default=True)  # Whether the course bot is active
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

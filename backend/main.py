@@ -473,6 +473,7 @@ class CourseCreate(BaseModel):
     lms_course_id: Optional[str] = Field(None, max_length=255)  # External LMS course ID
     llm_provider: Optional[str] = Field(None, max_length=50)  # anthropic, openai, google
     llm_model: Optional[str] = Field(None, max_length=100)  # specific model ID
+    is_active: bool = True  # Whether the course bot is active
 
     @validator('name')
     def sanitize_name(cls, v):
@@ -512,6 +513,7 @@ class CourseUpdate(BaseModel):
     lms_course_id: Optional[str] = Field(None, max_length=255)  # External LMS course ID
     llm_provider: Optional[str] = Field(None, max_length=50)  # anthropic, openai, google
     llm_model: Optional[str] = Field(None, max_length=100)  # specific model ID
+    is_active: Optional[bool] = None  # Whether the course bot is active
 
     @validator('content')
     def validate_content(cls, v):
@@ -544,6 +546,7 @@ class CourseResponse(BaseModel):
     lms_course_id: Optional[str]
     llm_provider: Optional[str]
     llm_model: Optional[str]
+    is_active: bool
     embed_code: str
 
     class Config:
@@ -615,7 +618,8 @@ def create_course(course: CourseCreate, db: Session = Depends(get_db), username:
         widget_config=course.widget_config.dict() if course.widget_config else None,
         lms_course_id=course.lms_course_id,
         llm_provider=course.llm_provider,
-        llm_model=course.llm_model
+        llm_model=course.llm_model,
+        is_active=course.is_active
     )
     db.add(db_course)
     db.commit()
@@ -660,6 +664,8 @@ def update_course(course_id: str, course_update: CourseUpdate, db: Session = Dep
         course.llm_provider = course_update.llm_provider
     if course_update.llm_model is not None:
         course.llm_model = course_update.llm_model
+    if course_update.is_active is not None:
+        course.is_active = course_update.is_active
 
     db.commit()
     db.refresh(course)
@@ -671,10 +677,28 @@ def delete_course(course_id: str, db: Session = Depends(get_db), username: str =
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    
+
     db.delete(course)
     db.commit()
     return {"message": "Course deleted successfully"}
+
+
+@app.post("/api/courses/{course_id}/toggle")
+def toggle_course_active(course_id: str, db: Session = Depends(get_db), username: str = Depends(verify_admin_credentials)):
+    """Toggle a course's active status."""
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    # Toggle the is_active status
+    course.is_active = not course.is_active
+    db.commit()
+    db.refresh(course)
+
+    return {
+        "message": f"Course {'activated' if course.is_active else 'deactivated'} successfully",
+        "is_active": course.is_active
+    }
 
 
 # File upload endpoint
@@ -1042,7 +1066,7 @@ def detect_widget(lms_course_id: str, db: Session = Depends(get_db)):
     Detect if a course bot exists for a given LMS course ID.
     Used by the floating widget loader script to auto-show widgets on matching pages.
 
-    Returns course info if found, 404 if no matching course bot.
+    Returns course info if found and active, 404 if no matching course bot or inactive.
     """
     if not lms_course_id or len(lms_course_id) > 255:
         raise HTTPException(status_code=400, detail="Invalid LMS course ID")
@@ -1050,8 +1074,11 @@ def detect_widget(lms_course_id: str, db: Session = Depends(get_db)):
     # Sanitize input
     lms_course_id = sanitize_string(lms_course_id.strip(), max_length=255)
 
-    # Look up by LMS course ID
-    course = db.query(Course).filter(Course.lms_course_id == lms_course_id).first()
+    # Look up by LMS course ID - only return active courses
+    course = db.query(Course).filter(
+        Course.lms_course_id == lms_course_id,
+        Course.is_active == True
+    ).first()
 
     if not course:
         raise HTTPException(status_code=404, detail="No course bot found for this LMS course")
@@ -1106,6 +1133,7 @@ def _course_to_response(course: Course) -> CourseResponse:
         lms_course_id=course.lms_course_id,
         llm_provider=course.llm_provider,
         llm_model=course.llm_model,
+        is_active=course.is_active if course.is_active is not None else True,
         embed_code=embed_code
     )
 

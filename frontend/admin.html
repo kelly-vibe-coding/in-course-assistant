@@ -138,6 +138,23 @@
         .btn-danger { background: var(--danger); color: white; }
         .btn-danger:hover { background: var(--danger-hover); }
         .btn-sm { padding: 8px 16px; font-size: 13px; }
+        .btn-toggle { background: var(--success); }
+        .btn-toggle:hover { background: #059669; }
+        .btn-toggle.inactive { background: var(--text-muted); }
+        .btn-toggle.inactive:hover { background: #6b7280; }
+        .course-card.inactive { opacity: 0.7; }
+        .course-card.inactive .course-card-header { background: var(--bg-tertiary); }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+        .status-badge.active { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+        .status-badge.inactive { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); }
         .courses-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
@@ -1836,9 +1853,9 @@
                 return;
             }
             container.innerHTML = `<div class="courses-grid">${courses.map(course => `
-                <div class="course-card">
+                <div class="course-card${course.is_active === false ? ' inactive' : ''}">
                     <div class="course-card-header">
-                        <h3>${escapeHtml(course.name)}</h3>
+                        <h3>${escapeHtml(course.name)}<span class="status-badge ${course.is_active === false ? 'inactive' : 'active'}">${course.is_active === false ? 'Inactive' : 'Active'}</span></h3>
                         <p>${escapeHtml(course.description || 'No description')}</p>
                     </div>
                     <div class="course-card-body">
@@ -1847,6 +1864,7 @@
                             ${course.lms_course_id ? `<span style="color: var(--accent);">✓ Skilljar: ${escapeHtml(course.lms_course_id)}</span>` : '<span style="color: var(--text-muted);">No Skilljar ID</span>'}
                         </div>
                         <div class="course-card-actions">
+                            <button class="btn btn-toggle btn-sm${course.is_active === false ? ' inactive' : ''}" onclick="toggleCourse('${course.id}')">${course.is_active === false ? 'Activate' : 'Deactivate'}</button>
                             <button class="btn btn-secondary btn-sm" onclick="openEditModal('${course.id}')">Edit</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteCourse('${course.id}')">Delete</button>
                         </div>
@@ -1950,6 +1968,18 @@
                 showToast('Course deleted!');
             } catch (error) {
                 showToast('Failed to delete', 'error');
+            }
+        }
+
+        async function toggleCourse(courseId) {
+            try {
+                const response = await fetch(`${API_URL}/api/courses/${courseId}/toggle`, { method: 'POST' });
+                if (!response.ok) throw new Error('Failed to toggle');
+                const result = await response.json();
+                await loadCourses();
+                showToast(result.message);
+            } catch (error) {
+                showToast('Failed to toggle course status', 'error');
             }
         }
 

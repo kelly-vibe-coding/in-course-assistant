@@ -37,6 +37,11 @@
     let widgetContainer = null;
     let widgetIframe = null;
     let bubbleButton = null;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let initialX = 0;
+    let initialY = 0;
 
     /**
      * Apply widget style settings from server config
@@ -161,11 +166,16 @@
         let currentWidth = config.widgetWidth;
         let currentHeight = config.widgetHeight;
 
+        // Store initial position for potential reset
+        const initialBottom = config.bubbleSize + 30;
+        const initialRight = config.position === 'bottom-right' ? 20 : null;
+        const initialLeft = config.position === 'bottom-left' ? 20 : null;
+
         Object.assign(widgetContainer.style, {
             position: 'fixed',
-            bottom: `${config.bubbleSize + 30}px`,
-            right: config.position === 'bottom-right' ? '20px' : 'auto',
-            left: config.position === 'bottom-left' ? '20px' : 'auto',
+            bottom: `${initialBottom}px`,
+            right: initialRight !== null ? `${initialRight}px` : 'auto',
+            left: initialLeft !== null ? `${initialLeft}px` : 'auto',
             width: `${currentWidth}px`,
             height: `${currentHeight}px`,
             borderRadius: '12px',
@@ -180,6 +190,103 @@
             minHeight: '400px',
             maxWidth: '90vw',
             maxHeight: '80vh',
+        });
+
+        // Create drag handle bar at the top
+        const dragHandle = document.createElement('div');
+        dragHandle.id = 'course-chat-drag-handle';
+        Object.assign(dragHandle.style, {
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            right: '0',
+            height: '28px',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0) 100%)',
+            cursor: 'move',
+            zIndex: '15',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+        });
+
+        // Add grip indicator dots
+        const gripIndicator = document.createElement('div');
+        Object.assign(gripIndicator.style, {
+            width: '40px',
+            height: '4px',
+            background: 'rgba(0,0,0,0.2)',
+            borderRadius: '2px',
+            opacity: '0.6',
+            transition: 'opacity 0.2s',
+        });
+        dragHandle.appendChild(gripIndicator);
+
+        // Hover effect on grip
+        dragHandle.addEventListener('mouseenter', () => {
+            gripIndicator.style.opacity = '1';
+        });
+        dragHandle.addEventListener('mouseleave', () => {
+            if (!isDragging) {
+                gripIndicator.style.opacity = '0.6';
+            }
+        });
+
+        // Drag functionality
+        dragHandle.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+
+            // Get current position - convert bottom/right to top/left for easier manipulation
+            const rect = widgetContainer.getBoundingClientRect();
+            initialX = rect.left;
+            initialY = rect.top;
+
+            // Switch to top/left positioning for dragging
+            widgetContainer.style.bottom = 'auto';
+            widgetContainer.style.right = 'auto';
+            widgetContainer.style.left = `${initialX}px`;
+            widgetContainer.style.top = `${initialY}px`;
+
+            // Disable transition during drag
+            widgetContainer.style.transition = 'none';
+
+            // Prevent iframe from capturing mouse events
+            widgetIframe.style.pointerEvents = 'none';
+
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const deltaX = e.clientX - dragStartX;
+            const deltaY = e.clientY - dragStartY;
+
+            let newX = initialX + deltaX;
+            let newY = initialY + deltaY;
+
+            // Keep widget within viewport bounds
+            const rect = widgetContainer.getBoundingClientRect();
+            const maxX = window.innerWidth - rect.width;
+            const maxY = window.innerHeight - rect.height;
+
+            newX = Math.max(0, Math.min(newX, maxX));
+            newY = Math.max(0, Math.min(newY, maxY));
+
+            widgetContainer.style.left = `${newX}px`;
+            widgetContainer.style.top = `${newY}px`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                widgetContainer.style.transition = 'opacity 0.3s, transform 0.3s';
+                widgetIframe.style.pointerEvents = 'auto';
+                gripIndicator.style.opacity = '0.6';
+            }
         });
 
         // Create resize handle (top-left corner for bottom-right positioned widget)
@@ -288,6 +395,7 @@
             border: 'none',
         });
 
+        widgetContainer.appendChild(dragHandle);
         widgetContainer.appendChild(resizeHandle);
         widgetContainer.appendChild(widgetIframe);
         document.body.appendChild(widgetContainer);
