@@ -250,8 +250,16 @@
             widgetContainer.style.left = `${initialX}px`;
             widgetContainer.style.top = `${initialY}px`;
 
+            // Also switch bubble to top/left positioning
+            const bubbleRect = bubbleButton.getBoundingClientRect();
+            bubbleButton.style.bottom = 'auto';
+            bubbleButton.style.right = 'auto';
+            bubbleButton.style.left = `${bubbleRect.left}px`;
+            bubbleButton.style.top = `${bubbleRect.top}px`;
+
             // Disable transition during drag
             widgetContainer.style.transition = 'none';
+            bubbleButton.style.transition = 'none';
 
             // Prevent iframe from capturing mouse events
             widgetIframe.style.pointerEvents = 'none';
@@ -278,12 +286,19 @@
 
             widgetContainer.style.left = `${newX}px`;
             widgetContainer.style.top = `${newY}px`;
+
+            // Move bubble button to stay below the widget
+            const bubbleX = newX + (rect.width / 2) - (config.bubbleSize / 2);
+            const bubbleY = newY + rect.height + 10;
+            bubbleButton.style.left = `${bubbleX}px`;
+            bubbleButton.style.top = `${bubbleY}px`;
         });
 
         document.addEventListener('mouseup', () => {
             if (isDragging) {
                 isDragging = false;
                 widgetContainer.style.transition = 'opacity 0.3s, transform 0.3s';
+                bubbleButton.style.transition = 'transform 0.2s, box-shadow 0.2s';
                 widgetIframe.style.pointerEvents = 'auto';
                 gripIndicator.style.opacity = '0.6';
             }
