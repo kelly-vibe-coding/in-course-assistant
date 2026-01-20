@@ -330,6 +330,16 @@ in-course-assistant/
 | Chat messages | No | Not persisted |
 | Learner identity | No | No PII collected |
 
+### Third-Party AI Services
+
+This tool sends course content and learner questions to third-party AI providers (Anthropic, OpenAI, or Google) via their APIs. You are responsible for:
+
+- Reviewing each provider's terms of service and data policies
+- Ensuring compliance with your organization's data governance requirements
+- Obtaining any necessary approvals before uploading proprietary content
+
+As of January 2026, these providers state that API usage is not used for model training, but policies may change. This project makes no guarantees about third-party data handling.
+
 ---
 
 ## Credits
