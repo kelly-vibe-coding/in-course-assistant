@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine, Column, String, Text, DateTime, JSON, Boolean
+from sqlalchemy import create_engine, Column, String, Text, DateTime, JSON, Boolean, Integer, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import uuid
 import bcrypt
@@ -92,6 +92,69 @@ class Course(Base):
     is_active = Column(Boolean, nullable=False, default=True)  # Whether the course bot is active
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships for analytics
+    chat_logs = relationship("ChatLog", back_populates="course", cascade="all, delete-orphan")
+    question_clusters = relationship("QuestionCluster", back_populates="course", cascade="all, delete-orphan")
+
+
+class ChatLog(Base):
+    """Stores all chat interactions for analytics and content gap detection."""
+    __tablename__ = "chat_logs"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    session_id = Column(String(64), nullable=False, index=True)  # Groups conversations
+    course_id = Column(String(36), ForeignKey('courses.id'), nullable=False, index=True)
+    lesson_title = Column(String(500), nullable=True, index=True)  # Current lesson context
+
+    # Message content
+    user_message = Column(Text, nullable=False)
+    ai_response = Column(Text, nullable=False)
+
+    # Grounding classification (set by LLM self-tagging)
+    grounding_source = Column(String(50), nullable=False, default="unknown")
+    # Values: "course_content", "general_knowledge", "uncertain", "mixed", "unknown"
+
+    # Content gap detection
+    is_content_gap = Column(Boolean, default=False, index=True)  # True if AI couldn't answer from course
+    gap_topic = Column(String(255), nullable=True)  # AI-extracted topic of the gap
+
+    # Metadata
+    response_time_ms = Column(Integer, nullable=True)  # How long the response took
+    llm_provider = Column(String(50), nullable=True)
+    llm_model = Column(String(100), nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Relationships
+    course = relationship("Course", back_populates="chat_logs")
+
+
+class QuestionCluster(Base):
+    """AI-generated clusters of similar questions for FAQ generation."""
+    __tablename__ = "question_clusters"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    course_id = Column(String(36), ForeignKey('courses.id'), nullable=False, index=True)
+
+    # Cluster info
+    theme = Column(String(255), nullable=False)  # AI-generated theme name
+    description = Column(Text, nullable=True)  # AI-generated description
+    question_count = Column(Integer, default=0)
+
+    # Representative questions (JSON array of question strings)
+    sample_questions = Column(JSON, nullable=True)
+
+    # Suggested FAQ content
+    suggested_faq_answer = Column(Text, nullable=True)
+
+    # Analysis metadata
+    last_analyzed_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    course = relationship("Course", back_populates="question_clusters")
 
 
 def get_db():

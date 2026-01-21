@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 from pypdf import PdfReader
 from docx import Document
 
-from database import get_db, init_db, Course, AdminUser, LLMSettings, WidgetStyle, SessionLocal, DEFAULT_WIDGET_CONFIG
+from database import get_db, init_db, Course, AdminUser, LLMSettings, WidgetStyle, ChatLog, QuestionCluster, SessionLocal, DEFAULT_WIDGET_CONFIG
 
 load_dotenv()
 
@@ -381,7 +381,7 @@ def extract_text_from_docx(file_content: bytes) -> str:
 def extract_text_from_file(filename: str, content: bytes) -> str:
     """Extract text based on file type."""
     filename_lower = filename.lower()
-    
+
     if filename_lower.endswith('.pdf'):
         return extract_text_from_pdf(content)
     elif filename_lower.endswith('.docx'):
@@ -390,6 +390,99 @@ def extract_text_from_file(filename: str, content: bytes) -> str:
         return content.decode('utf-8')
     else:
         raise ValueError(f"Unsupported file type: {filename}")
+
+
+# =============================================================================
+# CHAT LOGGING & GROUNDING DETECTION
+# =============================================================================
+
+def parse_grounding_metadata(response: str) -> tuple:
+    """
+    Parse grounding metadata from AI response.
+    Returns: (clean_response, grounding_source, is_content_gap, gap_topic)
+    """
+    # Pattern to match the metadata line: [[GROUNDING:source|gap_detected|topic]]
+    pattern = r'\[\[GROUNDING:(\w+)\|(true|false)\|([^\]]+)\]\]'
+    match = re.search(pattern, response)
+
+    if match:
+        source = match.group(1)  # course_content, general_knowledge, mixed, uncertain
+        gap_detected = match.group(2) == "true"
+        topic = match.group(3) if match.group(3) != "none" else None
+
+        # Remove the metadata line from response
+        clean_response = re.sub(r'\n?\[\[GROUNDING:[^\]]+\]\]', '', response).strip()
+
+        return clean_response, source, gap_detected, topic
+
+    # Fallback detection if LLM didn't include metadata
+    # Check for known uncertainty phrases
+    uncertainty_phrases = [
+        "isn't specifically covered",
+        "not specifically covered",
+        "this isn't covered",
+        "not covered in the course",
+        "beyond what's in the course"
+    ]
+    is_uncertain = any(phrase in response.lower() for phrase in uncertainty_phrases)
+
+    return response, "unknown", is_uncertain, None
+
+
+def log_chat_interaction(
+    db: Session,
+    course_id: str,
+    session_id: str,
+    lesson_title: str,
+    user_message: str,
+    ai_response: str,
+    grounding_source: str,
+    is_content_gap: bool,
+    gap_topic: str,
+    response_time_ms: int,
+    provider: str,
+    model: str
+):
+    """Log a chat interaction to the database for analytics."""
+    import uuid
+
+    chat_log = ChatLog(
+        id=str(uuid.uuid4()),
+        session_id=session_id or str(uuid.uuid4()),
+        course_id=course_id,
+        lesson_title=lesson_title,
+        user_message=user_message,
+        ai_response=ai_response,
+        grounding_source=grounding_source,
+        is_content_gap=is_content_gap,
+        gap_topic=gap_topic,
+        response_time_ms=response_time_ms,
+        llm_provider=provider,
+        llm_model=model
+    )
+    db.add(chat_log)
+    db.commit()
+
+
+# Grounding tagging instructions to append to system prompts
+GROUNDING_TAGGING_INSTRUCTIONS = """
+
+=== RESPONSE GROUNDING TAGGING (INTERNAL) ===
+After your response, you MUST include a metadata line on the LAST LINE in exactly this format:
+[[GROUNDING:source|gap_detected|topic]]
+
+Where:
+- source: "course_content" (answer fully from course), "general_knowledge" (answer from your knowledge), "mixed" (combination), or "uncertain" (couldn't fully answer)
+- gap_detected: "true" if the question reveals missing course content that SHOULD be there, "false" otherwise
+- topic: brief topic of any content gap (or "none" if no gap)
+
+Examples:
+- [[GROUNDING:course_content|false|none]]
+- [[GROUNDING:mixed|false|none]]
+- [[GROUNDING:uncertain|true|API authentication methods]]
+- [[GROUNDING:general_knowledge|true|industry best practices for testing]]
+
+This metadata helps improve the course. The user will never see this line."""
 
 # =============================================================================
 # MIDDLEWARE
@@ -559,6 +652,7 @@ class ChatRequest(BaseModel):
     conversation_history: Optional[list] = []
     lesson_title: Optional[str] = Field(None, max_length=500)  # Current lesson context
     complexity: Optional[str] = Field("detailed", pattern="^(simple|detailed)$")  # Response complexity level
+    session_id: Optional[str] = Field(None, max_length=64)  # Session ID for conversation grouping
 
     @validator('course_id')
     def validate_course_id(cls, v):
@@ -583,6 +677,12 @@ class ChatRequest(BaseModel):
     def sanitize_lesson_title(cls, v):
         if v:
             return sanitize_string(v, max_length=500)
+        return v
+
+    @validator('session_id')
+    def sanitize_session_id(cls, v):
+        if v:
+            return sanitize_string(v, max_length=64)
         return v
 
 
@@ -750,6 +850,9 @@ def chat(request: ChatRequest, req: Request, db: Session = Depends(get_db)):
             headers={"Retry-After": "60", "X-RateLimit-Remaining": str(remaining)}
         )
 
+    # Start timing for response_time_ms
+    start_time = time.time()
+
     course = db.query(Course).filter(Course.id == request.course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -825,7 +928,7 @@ COURSE NAME: {course.name}"""
 
 === COURSE CONTENT ===
 {course.content}
-=== END COURSE CONTENT ==="""
+=== END COURSE CONTENT ==={GROUNDING_TAGGING_INSTRUCTIONS}"""
 
     # Build messages with conversation history
     messages = []
@@ -843,7 +946,34 @@ COURSE NAME: {course.name}"""
     try:
         # Use the unified LLM interface
         response_text = get_llm_response(provider, model, messages, system_prompt, stream=False)
-        return ChatResponse(response=response_text)
+
+        # Parse grounding metadata and get clean response
+        clean_response, grounding_source, is_content_gap, gap_topic = parse_grounding_metadata(response_text)
+
+        # Calculate response time
+        response_time_ms = int((time.time() - start_time) * 1000)
+
+        # Log the interaction for analytics
+        try:
+            log_chat_interaction(
+                db=db,
+                course_id=request.course_id,
+                session_id=getattr(request, 'session_id', None),
+                lesson_title=lesson_title,
+                user_message=request.message,
+                ai_response=clean_response,
+                grounding_source=grounding_source,
+                is_content_gap=is_content_gap,
+                gap_topic=gap_topic,
+                response_time_ms=response_time_ms,
+                provider=provider,
+                model=model
+            )
+        except Exception as log_error:
+            # Don't fail the request if logging fails
+            print(f"Warning: Failed to log chat interaction: {log_error}")
+
+        return ChatResponse(response=clean_response)
 
     except HTTPException:
         raise
@@ -866,6 +996,9 @@ async def chat_stream(request: ChatRequest, req: Request, db: Session = Depends(
             detail="Rate limit exceeded. Please wait before sending more messages.",
             headers={"Retry-After": "60"}
         )
+
+    # Start timing for response_time_ms
+    start_time = time.time()
 
     course = db.query(Course).filter(Course.id == request.course_id).first()
     if not course:
@@ -942,7 +1075,7 @@ COURSE NAME: {course.name}"""
 
 === COURSE CONTENT ===
 {course.content}
-=== END COURSE CONTENT ==="""
+=== END COURSE CONTENT ==={GROUNDING_TAGGING_INSTRUCTIONS}"""
 
     # Build messages with conversation history
     messages = []
@@ -957,6 +1090,17 @@ COURSE NAME: {course.name}"""
         "content": request.message
     })
 
+    # Capture request context for logging after stream completes
+    request_context = {
+        "course_id": request.course_id,
+        "session_id": getattr(request, 'session_id', None),
+        "lesson_title": lesson_title,
+        "user_message": request.message,
+        "provider": provider,
+        "model": model,
+        "start_time": start_time
+    }
+
     async def generate_anthropic():
         """Stream from Anthropic Claude."""
         api_key = get_api_key_for_provider("anthropic")
@@ -965,6 +1109,7 @@ COURSE NAME: {course.name}"""
             return
 
         client = anthropic.Anthropic(api_key=api_key)
+        full_response = ""
         try:
             with client.messages.stream(
                 model=model,
@@ -979,7 +1124,39 @@ COURSE NAME: {course.name}"""
                 messages=messages
             ) as stream:
                 for text in stream.text_stream:
-                    yield f"data: {json.dumps({'text': text})}\n\n"
+                    full_response += text
+                    # Don't stream the grounding metadata to the client
+                    if "[[GROUNDING:" not in full_response:
+                        yield f"data: {json.dumps({'text': text})}\n\n"
+                    elif "[[GROUNDING:" in text:
+                        # We've hit the metadata, stop streaming but continue collecting
+                        pass
+
+            # Parse grounding metadata and log
+            clean_response, grounding_source, is_content_gap, gap_topic = parse_grounding_metadata(full_response)
+            response_time_ms = int((time.time() - request_context["start_time"]) * 1000)
+
+            # Log the interaction
+            try:
+                log_db = SessionLocal()
+                log_chat_interaction(
+                    db=log_db,
+                    course_id=request_context["course_id"],
+                    session_id=request_context["session_id"],
+                    lesson_title=request_context["lesson_title"],
+                    user_message=request_context["user_message"],
+                    ai_response=clean_response,
+                    grounding_source=grounding_source,
+                    is_content_gap=is_content_gap,
+                    gap_topic=gap_topic,
+                    response_time_ms=response_time_ms,
+                    provider=request_context["provider"],
+                    model=request_context["model"]
+                )
+                log_db.close()
+            except Exception as log_error:
+                print(f"Warning: Failed to log streaming chat interaction: {log_error}")
+
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -996,6 +1173,7 @@ COURSE NAME: {course.name}"""
         for msg in messages:
             openai_messages.append({"role": msg["role"], "content": msg["content"]})
 
+        full_response = ""
         try:
             stream = client.chat.completions.create(
                 model=model,
@@ -1005,7 +1183,37 @@ COURSE NAME: {course.name}"""
             )
             for chunk in stream:
                 if chunk.choices[0].delta.content:
-                    yield f"data: {json.dumps({'text': chunk.choices[0].delta.content})}\n\n"
+                    text = chunk.choices[0].delta.content
+                    full_response += text
+                    # Don't stream the grounding metadata to the client
+                    if "[[GROUNDING:" not in full_response:
+                        yield f"data: {json.dumps({'text': text})}\n\n"
+
+            # Parse grounding metadata and log
+            clean_response, grounding_source, is_content_gap, gap_topic = parse_grounding_metadata(full_response)
+            response_time_ms = int((time.time() - request_context["start_time"]) * 1000)
+
+            # Log the interaction
+            try:
+                log_db = SessionLocal()
+                log_chat_interaction(
+                    db=log_db,
+                    course_id=request_context["course_id"],
+                    session_id=request_context["session_id"],
+                    lesson_title=request_context["lesson_title"],
+                    user_message=request_context["user_message"],
+                    ai_response=clean_response,
+                    grounding_source=grounding_source,
+                    is_content_gap=is_content_gap,
+                    gap_topic=gap_topic,
+                    response_time_ms=response_time_ms,
+                    provider=request_context["provider"],
+                    model=request_context["model"]
+                )
+                log_db.close()
+            except Exception as log_error:
+                print(f"Warning: Failed to log streaming chat interaction: {log_error}")
+
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -1032,11 +1240,42 @@ COURSE NAME: {course.name}"""
 
         chat = gemini_model.start_chat(history=history)
 
+        full_response = ""
         try:
             response = chat.send_message(current_message, stream=True)
             for chunk in response:
                 if chunk.text:
-                    yield f"data: {json.dumps({'text': chunk.text})}\n\n"
+                    text = chunk.text
+                    full_response += text
+                    # Don't stream the grounding metadata to the client
+                    if "[[GROUNDING:" not in full_response:
+                        yield f"data: {json.dumps({'text': text})}\n\n"
+
+            # Parse grounding metadata and log
+            clean_response, grounding_source, is_content_gap, gap_topic = parse_grounding_metadata(full_response)
+            response_time_ms = int((time.time() - request_context["start_time"]) * 1000)
+
+            # Log the interaction
+            try:
+                log_db = SessionLocal()
+                log_chat_interaction(
+                    db=log_db,
+                    course_id=request_context["course_id"],
+                    session_id=request_context["session_id"],
+                    lesson_title=request_context["lesson_title"],
+                    user_message=request_context["user_message"],
+                    ai_response=clean_response,
+                    grounding_source=grounding_source,
+                    is_content_gap=is_content_gap,
+                    gap_topic=gap_topic,
+                    response_time_ms=response_time_ms,
+                    provider=request_context["provider"],
+                    model=request_context["model"]
+                )
+                log_db.close()
+            except Exception as log_error:
+                print(f"Warning: Failed to log streaming chat interaction: {log_error}")
+
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -1062,6 +1301,403 @@ COURSE NAME: {course.name}"""
             "X-Accel-Buffering": "no"
         }
     )
+
+
+# =============================================================================
+# ANALYTICS API ENDPOINTS
+# =============================================================================
+
+from datetime import timedelta
+from sqlalchemy import func, desc, Integer as SQLInteger
+
+@app.get("/api/analytics/overview")
+def get_analytics_overview(
+    course_id: Optional[str] = None,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials)
+):
+    """Get high-level analytics summary."""
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+    # Base query
+    query = db.query(ChatLog).filter(ChatLog.created_at >= cutoff_date)
+    if course_id:
+        query = query.filter(ChatLog.course_id == course_id)
+
+    # Total conversations
+    total_chats = query.count()
+
+    # Content gaps count
+    content_gaps = query.filter(ChatLog.is_content_gap == True).count()
+
+    # Grounding distribution
+    grounding_stats = db.query(
+        ChatLog.grounding_source,
+        func.count(ChatLog.id).label('count')
+    ).filter(ChatLog.created_at >= cutoff_date)
+    if course_id:
+        grounding_stats = grounding_stats.filter(ChatLog.course_id == course_id)
+    grounding_stats = grounding_stats.group_by(ChatLog.grounding_source).all()
+
+    grounding_distribution = {stat.grounding_source: stat.count for stat in grounding_stats}
+
+    # Course-grounded percentage
+    course_grounded = grounding_distribution.get('course_content', 0) + grounding_distribution.get('mixed', 0)
+    grounded_percentage = round((course_grounded / total_chats * 100) if total_chats > 0 else 0, 1)
+
+    # Unique lessons with questions
+    lessons_query = db.query(func.count(func.distinct(ChatLog.lesson_title))).filter(
+        ChatLog.created_at >= cutoff_date,
+        ChatLog.lesson_title.isnot(None)
+    )
+    if course_id:
+        lessons_query = lessons_query.filter(ChatLog.course_id == course_id)
+    active_lessons = lessons_query.scalar() or 0
+
+    # Average response time
+    avg_response_time = db.query(func.avg(ChatLog.response_time_ms)).filter(
+        ChatLog.created_at >= cutoff_date
+    )
+    if course_id:
+        avg_response_time = avg_response_time.filter(ChatLog.course_id == course_id)
+    avg_response_time = avg_response_time.scalar() or 0
+
+    return {
+        "total_chats": total_chats,
+        "content_gaps": content_gaps,
+        "grounded_percentage": grounded_percentage,
+        "active_lessons": active_lessons,
+        "avg_response_time_ms": round(avg_response_time),
+        "grounding_distribution": grounding_distribution,
+        "period_days": days
+    }
+
+
+@app.get("/api/analytics/content-gaps")
+def get_content_gaps(
+    course_id: Optional[str] = None,
+    days: int = 30,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials)
+):
+    """Get questions the AI couldn't answer from course content."""
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+    query = db.query(ChatLog).filter(
+        ChatLog.created_at >= cutoff_date,
+        ChatLog.is_content_gap == True
+    )
+    if course_id:
+        query = query.filter(ChatLog.course_id == course_id)
+
+    gaps = query.order_by(desc(ChatLog.created_at)).limit(limit).all()
+
+    # Group by topic if available
+    topic_counts = {}
+    for gap in gaps:
+        topic = gap.gap_topic or "Uncategorized"
+        if topic not in topic_counts:
+            topic_counts[topic] = {"count": 0, "questions": [], "lessons": set()}
+        topic_counts[topic]["count"] += 1
+        topic_counts[topic]["questions"].append(gap.user_message)
+        if gap.lesson_title:
+            topic_counts[topic]["lessons"].add(gap.lesson_title)
+
+    # Convert to list and sort by count
+    gap_topics = [
+        {
+            "topic": topic,
+            "count": data["count"],
+            "sample_questions": data["questions"][:3],
+            "lessons": list(data["lessons"])[:3]
+        }
+        for topic, data in topic_counts.items()
+    ]
+    gap_topics.sort(key=lambda x: x["count"], reverse=True)
+
+    return {
+        "total_gaps": len(gaps),
+        "gap_topics": gap_topics[:20],
+        "recent_gaps": [
+            {
+                "id": gap.id,
+                "question": gap.user_message,
+                "topic": gap.gap_topic,
+                "lesson": gap.lesson_title,
+                "created_at": gap.created_at.isoformat()
+            }
+            for gap in gaps[:10]
+        ]
+    }
+
+
+@app.get("/api/analytics/lesson-friction")
+def get_lesson_friction(
+    course_id: str,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials)
+):
+    """Get question volume by lesson (friction heatmap data)."""
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+    # Query for lessons with question counts
+    lesson_stats = db.query(
+        ChatLog.lesson_title,
+        func.count(ChatLog.id).label('total_questions'),
+        func.sum(func.cast(ChatLog.is_content_gap, SQLInteger)).label('gap_count')
+    ).filter(
+        ChatLog.course_id == course_id,
+        ChatLog.created_at >= cutoff_date,
+        ChatLog.lesson_title.isnot(None)
+    ).group_by(ChatLog.lesson_title).order_by(desc('total_questions')).all()
+
+    lessons = []
+    max_questions = max((stat.total_questions for stat in lesson_stats), default=1)
+
+    for stat in lesson_stats:
+        gap_count = stat.gap_count or 0
+        gap_percentage = round((gap_count / stat.total_questions * 100) if stat.total_questions > 0 else 0, 1)
+        lessons.append({
+            "lesson": stat.lesson_title,
+            "question_count": stat.total_questions,
+            "gap_count": gap_count,
+            "gap_percentage": gap_percentage,
+            "heat_score": round(stat.total_questions / max_questions * 100)
+        })
+
+    return {
+        "lessons": lessons,
+        "total_lessons": len(lessons),
+        "period_days": days
+    }
+
+
+@app.get("/api/analytics/conversations")
+def get_conversations(
+    course_id: Optional[str] = None,
+    days: int = 30,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials)
+):
+    """Get conversation sessions for review."""
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+    # Get unique sessions with metadata
+    session_query = db.query(
+        ChatLog.session_id,
+        ChatLog.course_id,
+        func.min(ChatLog.created_at).label('started_at'),
+        func.max(ChatLog.created_at).label('last_message_at'),
+        func.count(ChatLog.id).label('message_count'),
+        func.sum(func.cast(ChatLog.is_content_gap, SQLInteger)).label('gap_count')
+    ).filter(ChatLog.created_at >= cutoff_date)
+
+    if course_id:
+        session_query = session_query.filter(ChatLog.course_id == course_id)
+
+    sessions = session_query.group_by(
+        ChatLog.session_id, ChatLog.course_id
+    ).order_by(desc('last_message_at')).offset(offset).limit(limit).all()
+
+    # Get course names for context
+    course_ids = list(set(s.course_id for s in sessions))
+    courses = {c.id: c.name for c in db.query(Course).filter(Course.id.in_(course_ids)).all()}
+
+    return {
+        "sessions": [
+            {
+                "session_id": s.session_id,
+                "course_id": s.course_id,
+                "course_name": courses.get(s.course_id, "Unknown"),
+                "started_at": s.started_at.isoformat() if s.started_at else None,
+                "last_message_at": s.last_message_at.isoformat() if s.last_message_at else None,
+                "message_count": s.message_count,
+                "has_gaps": (s.gap_count or 0) > 0
+            }
+            for s in sessions
+        ],
+        "total": len(sessions),
+        "offset": offset,
+        "limit": limit
+    }
+
+
+@app.get("/api/analytics/conversation/{session_id}")
+def get_conversation_detail(
+    session_id: str,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials)
+):
+    """Get full conversation thread for a session."""
+    messages = db.query(ChatLog).filter(
+        ChatLog.session_id == session_id
+    ).order_by(ChatLog.created_at).all()
+
+    if not messages:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Get course info
+    course = db.query(Course).filter(Course.id == messages[0].course_id).first()
+
+    return {
+        "session_id": session_id,
+        "course_id": messages[0].course_id,
+        "course_name": course.name if course else "Unknown",
+        "messages": [
+            {
+                "id": msg.id,
+                "user_message": msg.user_message,
+                "ai_response": msg.ai_response,
+                "lesson_title": msg.lesson_title,
+                "grounding_source": msg.grounding_source,
+                "is_content_gap": msg.is_content_gap,
+                "gap_topic": msg.gap_topic,
+                "response_time_ms": msg.response_time_ms,
+                "created_at": msg.created_at.isoformat()
+            }
+            for msg in messages
+        ],
+        "total_messages": len(messages)
+    }
+
+
+@app.post("/api/analytics/analyze-questions")
+def analyze_questions(
+    course_id: str,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials)
+):
+    """AI-assisted analysis: cluster questions into themes and generate FAQ drafts."""
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+    # Get recent chat logs for this course
+    chat_logs = db.query(ChatLog).filter(
+        ChatLog.course_id == course_id,
+        ChatLog.created_at >= cutoff_date
+    ).all()
+
+    if len(chat_logs) < 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Not enough data to analyze (minimum 5 conversations required)"
+        )
+
+    # Prepare questions for analysis
+    questions = [
+        {
+            "question": log.user_message,
+            "lesson": log.lesson_title,
+            "was_gap": log.is_content_gap
+        }
+        for log in chat_logs
+    ]
+
+    # Get LLM to cluster and analyze
+    provider, model = get_configured_provider_and_model()
+
+    analysis_prompt = f"""Analyze these {len(questions)} learner questions from a course.
+
+1. Group them into 3-7 themes based on what learners are asking about
+2. For each theme, identify:
+   - A clear theme name (2-5 words)
+   - A brief description
+   - 2-3 representative sample questions
+   - Whether this theme represents a content gap (learners confused about something not well covered)
+   - A suggested FAQ answer that could be added to the course
+
+Return JSON in this exact format:
+{{
+    "themes": [
+        {{
+            "name": "Theme Name",
+            "description": "Brief description",
+            "question_count": 12,
+            "sample_questions": ["Q1", "Q2", "Q3"],
+            "is_content_gap": true,
+            "suggested_faq": "Suggested answer text..."
+        }}
+    ],
+    "overall_insights": "Brief summary of what learners struggle with most"
+}}
+
+Questions to analyze:
+{json.dumps(questions[:100], indent=2)}"""
+
+    system = "You are an instructional design analyst. Analyze learner questions to identify patterns and content gaps. Return only valid JSON."
+
+    try:
+        response_text = get_llm_response(provider, model, [{"role": "user", "content": analysis_prompt}], system, stream=False)
+
+        # Handle potential markdown code blocks
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+            response_text = response_text.strip()
+
+        analysis = json.loads(response_text)
+
+        # Clear old clusters for this course
+        db.query(QuestionCluster).filter(QuestionCluster.course_id == course_id).delete()
+
+        # Create new clusters
+        for theme in analysis.get("themes", []):
+            cluster = QuestionCluster(
+                course_id=course_id,
+                theme=theme["name"],
+                description=theme.get("description"),
+                question_count=theme.get("question_count", 0),
+                sample_questions=theme.get("sample_questions", []),
+                suggested_faq_answer=theme.get("suggested_faq")
+            )
+            db.add(cluster)
+
+        db.commit()
+
+        return {
+            "clusters_created": len(analysis.get("themes", [])),
+            "overall_insights": analysis.get("overall_insights"),
+            "themes": analysis.get("themes", [])
+        }
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Failed to parse AI analysis response")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@app.get("/api/analytics/clusters/{course_id}")
+def get_question_clusters(
+    course_id: str,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials)
+):
+    """Get AI-generated question clusters for a course."""
+    clusters = db.query(QuestionCluster).filter(
+        QuestionCluster.course_id == course_id
+    ).order_by(desc(QuestionCluster.question_count)).all()
+
+    return {
+        "clusters": [
+            {
+                "id": c.id,
+                "theme": c.theme,
+                "description": c.description,
+                "question_count": c.question_count,
+                "sample_questions": c.sample_questions,
+                "suggested_faq_answer": c.suggested_faq_answer,
+                "last_analyzed_at": c.last_analyzed_at.isoformat() if c.last_analyzed_at else None
+            }
+            for c in clusters
+        ],
+        "total": len(clusters)
+    }
 
 
 # =============================================================================

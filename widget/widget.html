@@ -487,6 +487,16 @@
         // Storage keys
         const STORAGE_KEY = `course_assistant_history_${courseId}`;
         const ONBOARDED_KEY = `course_assistant_onboarded`;
+        const SESSION_KEY = `course_assistant_session_${courseId}`;
+
+        // Generate or retrieve session ID for analytics tracking
+        let sessionId = sessionStorage.getItem(SESSION_KEY);
+        if (!sessionId) {
+            sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            sessionStorage.setItem(SESSION_KEY, sessionId);
+        }
 
         let conversationHistory = [];
         let isLoading = false;
@@ -1066,7 +1076,8 @@
                         course_id: courseId,
                         message: message,
                         conversation_history: conversationHistory.slice(0, -1),
-                        lesson_title: lessonTitle || undefined
+                        lesson_title: lessonTitle || undefined,
+                        session_id: sessionId
                     })
                 });
 
@@ -1149,7 +1160,8 @@
                         course_id: courseId,
                         message: message,
                         conversation_history: conversationHistory.slice(0, -1),
-                        lesson_title: lessonTitle || undefined
+                        lesson_title: lessonTitle || undefined,
+                        session_id: sessionId
                     })
                 });
 
