@@ -1697,10 +1697,11 @@
                 `).join('');
 
             } catch (error) {
+                console.error('Content gaps error:', error);
                 container.innerHTML = `
                     <div class="analytics-empty">
-                        <h3>Unable to Load</h3>
-                        <p>There was an error loading content gaps. Please try again.</p>
+                        <h3>No Data Yet</h3>
+                        <p>Chat interactions will appear here once learners start using the course assistant.</p>
                     </div>
                 `;
             }
@@ -1752,10 +1753,11 @@
                 `).join('');
 
             } catch (error) {
+                console.error('Lesson friction error:', error);
                 container.innerHTML = `
                     <div class="analytics-empty">
-                        <h3>Unable to Load</h3>
-                        <p>There was an error loading lesson friction data.</p>
+                        <h3>No Data Yet</h3>
+                        <p>Lesson friction data will appear here once learners start asking questions.</p>
                     </div>
                 `;
             }
@@ -1912,10 +1914,11 @@
                 `;
 
             } catch (error) {
+                console.error('Conversations error:', error);
                 container.innerHTML = `
                     <div class="analytics-empty">
-                        <h3>Unable to Load</h3>
-                        <p>There was an error loading conversations.</p>
+                        <h3>No Conversations Yet</h3>
+                        <p>Conversations will appear here once learners start chatting with the course assistant.</p>
                     </div>
                 `;
             }
@@ -1967,10 +1970,14 @@
                 `;
 
             } catch (error) {
+                console.error('Conversation detail error:', error);
                 container.innerHTML = `
                     <div class="analytics-empty">
-                        <h3>Unable to Load</h3>
-                        <p>There was an error loading this conversation.</p>
+                        <h3>Conversation Not Found</h3>
+                        <p>This conversation may have been deleted or is no longer available.</p>
+                        <button class="btn btn-sm btn-secondary" style="margin-top: 12px;" onclick="loadConversations('${document.getElementById('analytics-course-select').value}', '${document.getElementById('analytics-date-range').value}')">
+                            Back to List
+                        </button>
                     </div>
                 `;
             }
