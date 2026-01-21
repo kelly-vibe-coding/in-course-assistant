@@ -1303,14 +1303,15 @@
         </div>
     </div>
 
-    <!-- API Keys Modal -->
+    <!-- Settings Modal -->
     <div class="modal-overlay" id="settings-modal">
         <div class="modal" style="max-width: 550px;">
             <div class="modal-header">
-                <h2>API Keys</h2>
+                <h2>Settings</h2>
                 <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
             </div>
             <div class="modal-body">
+                <h3 style="margin: 0 0 8px 0; font-size: 16px;">API Keys</h3>
                 <p class="hint" style="margin-bottom: 20px;">
                     Add API keys for the AI providers you want to use. You'll select which provider to use when creating each course bot.
                 </p>
@@ -1353,11 +1354,29 @@
                     </p>
                     <input type="password" id="google-api-key" placeholder="AIza...">
                 </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                <!-- Analytics Privacy Settings -->
+                <div class="form-group">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">Analytics & Conversation Logging</label>
+                    <p class="hint" style="margin-bottom: 12px;">
+                        Control what data is stored for analytics. This affects the Analytics dashboard.
+                    </p>
+                    <select id="analytics-logging-level" style="width: 100%;">
+                        <option value="analytics_only">Analytics Only (Recommended)</option>
+                        <option value="full">Full Logging</option>
+                        <option value="disabled">Disabled</option>
+                    </select>
+                    <div id="logging-level-description" class="hint" style="margin-top: 8px; padding: 10px; background: var(--bg-subtle); border-radius: 6px;">
+                        <!-- Description will be updated by JS -->
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
-                <span id="settings-saved-msg" style="display: none; color: #059669; font-size: 14px; font-weight: 500;">✓ Keys saved</span>
+                <span id="settings-saved-msg" style="display: none; color: #059669; font-size: 14px; font-weight: 500;">✓ Saved</span>
                 <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="saveApiKeys()">Save API Keys</button>
+                <button class="btn btn-primary" onclick="saveApiKeys()">Save Settings</button>
             </div>
         </div>
     </div>
@@ -2074,11 +2093,34 @@
                     // Update status badges based on which keys are configured
                     configuredProviders = settings.configured_providers || { anthropic: false, openai: false, google: false };
                     updateApiKeyStatus();
+
+                    // Set analytics logging level
+                    const loggingLevel = settings.analytics_logging_level || 'analytics_only';
+                    document.getElementById('analytics-logging-level').value = loggingLevel;
+                    updateLoggingLevelDescription(loggingLevel);
                 }
             } catch (error) {
                 console.error('Failed to load API keys:', error);
             }
         }
+
+        function updateLoggingLevelDescription(level) {
+            const descEl = document.getElementById('logging-level-description');
+            const descriptions = {
+                'analytics_only': '<strong>Analytics Only:</strong> Tracks grounding source, content gaps, and response times. Message content is NOT stored. Recommended for privacy.',
+                'full': '<strong>Full Logging:</strong> Stores complete conversation history including all messages. Enables conversation review in Analytics. Use only if you need to review actual conversations.',
+                'disabled': '<strong>Disabled:</strong> No analytics data is collected. The Analytics dashboard will not show any data.'
+            };
+            descEl.innerHTML = descriptions[level] || descriptions['analytics_only'];
+        }
+
+        // Update description when selection changes
+        document.addEventListener('DOMContentLoaded', () => {
+            const loggingSelect = document.getElementById('analytics-logging-level');
+            if (loggingSelect) {
+                loggingSelect.addEventListener('change', (e) => updateLoggingLevelDescription(e.target.value));
+            }
+        });
 
         function updateApiKeyStatus() {
             ['anthropic', 'openai', 'google'].forEach(provider => {
@@ -2093,16 +2135,13 @@
             const anthropicKey = document.getElementById('anthropic-api-key').value.trim();
             const openaiKey = document.getElementById('openai-api-key').value.trim();
             const googleKey = document.getElementById('google-api-key').value.trim();
+            const loggingLevel = document.getElementById('analytics-logging-level').value;
 
             const payload = {};
             if (anthropicKey) payload.anthropic_api_key = anthropicKey;
             if (openaiKey) payload.openai_api_key = openaiKey;
             if (googleKey) payload.google_api_key = googleKey;
-
-            if (Object.keys(payload).length === 0) {
-                showToast('No API keys to save', 'error');
-                return;
-            }
+            payload.analytics_logging_level = loggingLevel;  // Always include logging level
 
             try {
                 const response = await fetch(`${API_URL}/api/settings`, {
@@ -2125,13 +2164,13 @@
                     setTimeout(() => {
                         document.getElementById('settings-saved-msg').style.display = 'none';
                     }, 3000);
-                    showToast('API keys saved');
+                    showToast('Settings saved');
                 } else {
-                    showToast('Failed to save API keys', 'error');
+                    showToast('Failed to save settings', 'error');
                 }
             } catch (error) {
-                console.error('Failed to save API keys:', error);
-                showToast('Failed to save API keys', 'error');
+                console.error('Failed to save settings:', error);
+                showToast('Failed to save settings', 'error');
             }
         }
 

@@ -429,6 +429,14 @@ def parse_grounding_metadata(response: str) -> tuple:
     return response, "unknown", is_uncertain, None
 
 
+def get_analytics_logging_level(db: Session) -> str:
+    """Get the current analytics logging level from settings."""
+    settings = db.query(LLMSettings).filter(LLMSettings.id == "global").first()
+    if settings and settings.analytics_logging_level:
+        return settings.analytics_logging_level
+    return "analytics_only"  # Default to privacy-preserving mode
+
+
 def log_chat_interaction(
     db: Session,
     course_id: str,
@@ -443,8 +451,24 @@ def log_chat_interaction(
     provider: str,
     model: str
 ):
-    """Log a chat interaction to the database for analytics."""
+    """Log a chat interaction to the database for analytics.
+
+    Respects the analytics_logging_level setting:
+    - "full": Logs everything including message content
+    - "analytics_only": Logs metadata (grounding, gaps) but not message content
+    - "disabled": No logging at all
+    """
     import uuid
+
+    logging_level = get_analytics_logging_level(db)
+
+    if logging_level == "disabled":
+        return  # Don't log anything
+
+    # For analytics_only mode, redact the actual message content
+    if logging_level == "analytics_only":
+        user_message = "[Content not logged - analytics only mode]"
+        ai_response = "[Content not logged - analytics only mode]"
 
     chat_log = ChatLog(
         id=str(uuid.uuid4()),
@@ -1918,10 +1942,11 @@ async def create_admin_account(setup: SetupRequest):
 # =============================================================================
 
 class SettingsUpdate(BaseModel):
-    """API Keys update - stores keys for each provider separately."""
+    """API Keys and settings update."""
     anthropic_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
     google_api_key: Optional[str] = None
+    analytics_logging_level: Optional[str] = None  # "full", "analytics_only", "disabled"
 
 
 @app.get("/api/settings")
@@ -1952,7 +1977,8 @@ async def get_settings(request: Request):
 
         return {
             "configured_providers": configured_providers,
-            "providers": LLM_PROVIDERS  # Send available providers/models for the course form
+            "providers": LLM_PROVIDERS,  # Send available providers/models for the course form
+            "analytics_logging_level": settings.analytics_logging_level if settings else "analytics_only"
         }
     finally:
         db.close()
@@ -1981,8 +2007,15 @@ async def update_settings(request: Request, settings_update: SettingsUpdate):
         if settings_update.google_api_key is not None:
             settings.google_api_key = settings_update.google_api_key
 
+        # Update analytics logging level if provided
+        if settings_update.analytics_logging_level is not None:
+            if settings_update.analytics_logging_level in ["full", "analytics_only", "disabled"]:
+                settings.analytics_logging_level = settings_update.analytics_logging_level
+            else:
+                raise HTTPException(status_code=400, detail="Invalid analytics_logging_level. Must be 'full', 'analytics_only', or 'disabled'")
+
         db.commit()
-        return {"message": "API keys saved successfully"}
+        return {"message": "Settings saved successfully"}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to save API keys: {str(e)}")

@@ -65,6 +65,8 @@ class LLMSettings(Base):
     anthropic_api_key = Column(Text, nullable=True)  # Anthropic API key
     openai_api_key = Column(Text, nullable=True)  # OpenAI API key
     google_api_key = Column(Text, nullable=True)  # Google API key
+    # Analytics logging level: "full" (log everything), "analytics_only" (metadata only, no messages), "disabled" (no logging)
+    analytics_logging_level = Column(String(20), nullable=False, default="analytics_only")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -188,3 +190,14 @@ def _run_migrations():
                 conn.execute(text('ALTER TABLE courses ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL'))
                 conn.commit()
                 print("Migration: Added is_active column to courses table")
+
+    # Check if llm_settings table exists
+    if 'llm_settings' in inspector.get_table_names():
+        columns = [col['name'] for col in inspector.get_columns('llm_settings')]
+
+        # Migration: Add analytics_logging_level column if it doesn't exist
+        if 'analytics_logging_level' not in columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE llm_settings ADD COLUMN analytics_logging_level VARCHAR(20) DEFAULT 'analytics_only' NOT NULL"))
+                conn.commit()
+                print("Migration: Added analytics_logging_level column to llm_settings table")
