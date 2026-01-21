@@ -37,11 +37,16 @@
     let widgetContainer = null;
     let widgetIframe = null;
     let bubbleButton = null;
+    let speechBubble = null;
     let isDragging = false;
     let dragStartX = 0;
     let dragStartY = 0;
     let initialX = 0;
     let initialY = 0;
+    let nudgeTimeout = null;
+
+    // Storage key for nudge dismissal
+    const NUDGE_DISMISSED_KEY = 'course_assistant_nudge_dismissed';
 
     /**
      * Apply widget style settings from server config
@@ -70,6 +75,32 @@
         // Example: if (typeof someOtherLms !== 'undefined') { ... }
 
         return null;
+    }
+
+    /**
+     * Detect current lesson title from page
+     * Supports: Skilljar lesson pages, generic h1 tags, document title
+     */
+    function detectLessonTitle() {
+        // Skilljar lesson title
+        if (typeof skilljarLesson !== 'undefined' && skilljarLesson?.title) {
+            return skilljarLesson.title;
+        }
+
+        // Try to find lesson title from page heading
+        const lessonHeader = document.querySelector('.lesson-header h1, .lesson-title, [data-lesson-title]');
+        if (lessonHeader) {
+            return lessonHeader.textContent.trim();
+        }
+
+        // Fallback to document title (often includes lesson name)
+        const title = document.title;
+        if (title && !title.includes('Course') && title.length < 100) {
+            // Clean up common patterns
+            return title.replace(/\s*[-|]\s*.+$/, '').trim();
+        }
+
+        return '';
     }
 
     /**
@@ -150,9 +181,194 @@
             }
         });
 
-        bubbleButton.addEventListener('click', toggleWidget);
+        bubbleButton.addEventListener('click', () => {
+            hideSpeechBubble();
+            toggleWidget();
+        });
 
         document.body.appendChild(bubbleButton);
+
+        // Add pulse animation CSS
+        addPulseAnimationStyles();
+
+        // Start pulse animation
+        bubbleButton.classList.add('course-chat-pulse');
+    }
+
+    /**
+     * Add CSS styles for pulse animation
+     */
+    function addPulseAnimationStyles() {
+        const styleId = 'course-chat-pulse-styles';
+        if (document.getElementById(styleId)) return;
+
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            @keyframes course-chat-pulse {
+                0% {
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 0 rgba(95, 207, 180, 0.7);
+                }
+                70% {
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 15px rgba(95, 207, 180, 0);
+                }
+                100% {
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 0 rgba(95, 207, 180, 0);
+                }
+            }
+
+            .course-chat-pulse {
+                animation: course-chat-pulse 2s infinite;
+            }
+
+            .course-chat-speech-bubble {
+                position: fixed;
+                background: white;
+                padding: 12px 16px;
+                border-radius: 12px;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 14px;
+                color: #1e293b;
+                max-width: 220px;
+                z-index: ${config.zIndex + 1};
+                cursor: pointer;
+                transition: opacity 0.3s, transform 0.3s;
+            }
+
+            .course-chat-speech-bubble::after {
+                content: '';
+                position: absolute;
+                bottom: -8px;
+                width: 0;
+                height: 0;
+                border-left: 8px solid transparent;
+                border-right: 8px solid transparent;
+                border-top: 8px solid white;
+            }
+
+            .course-chat-speech-bubble.bottom-right::after {
+                right: 24px;
+            }
+
+            .course-chat-speech-bubble.bottom-left::after {
+                left: 24px;
+            }
+
+            .course-chat-speech-bubble-close {
+                position: absolute;
+                top: 4px;
+                right: 8px;
+                background: none;
+                border: none;
+                font-size: 16px;
+                color: #94a3b8;
+                cursor: pointer;
+                padding: 2px 6px;
+                line-height: 1;
+            }
+
+            .course-chat-speech-bubble-close:hover {
+                color: #475569;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    /**
+     * Create and show the speech bubble nudge
+     */
+    function showSpeechBubble() {
+        // Don't show if already dismissed or widget is open
+        if (localStorage.getItem(NUDGE_DISMISSED_KEY) || isOpen || speechBubble) {
+            return;
+        }
+
+        const colors = courseData?.config?.colors || {};
+
+        speechBubble = document.createElement('div');
+        speechBubble.className = `course-chat-speech-bubble ${config.position}`;
+
+        // Position above the bubble button
+        const bubbleRect = bubbleButton.getBoundingClientRect();
+        speechBubble.style.bottom = `${window.innerHeight - bubbleRect.top + 12}px`;
+
+        if (config.position === 'bottom-right') {
+            speechBubble.style.right = '20px';
+        } else {
+            speechBubble.style.left = '20px';
+        }
+
+        speechBubble.innerHTML = `
+            <button class="course-chat-speech-bubble-close" aria-label="Dismiss">×</button>
+            <strong>Need help?</strong><br>
+            I can answer questions about this lesson!
+        `;
+
+        // Click bubble to open chat
+        speechBubble.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('course-chat-speech-bubble-close')) {
+                hideSpeechBubble();
+                toggleWidget();
+            }
+        });
+
+        // Click X to dismiss permanently
+        speechBubble.querySelector('.course-chat-speech-bubble-close').addEventListener('click', (e) => {
+            e.stopPropagation();
+            dismissSpeechBubble();
+        });
+
+        document.body.appendChild(speechBubble);
+    }
+
+    /**
+     * Hide the speech bubble
+     */
+    function hideSpeechBubble() {
+        if (speechBubble) {
+            speechBubble.style.opacity = '0';
+            speechBubble.style.transform = 'translateY(10px)';
+            setTimeout(() => {
+                if (speechBubble) {
+                    speechBubble.remove();
+                    speechBubble = null;
+                }
+            }, 300);
+        }
+
+        // Stop pulse animation once user has interacted
+        if (bubbleButton) {
+            bubbleButton.classList.remove('course-chat-pulse');
+        }
+
+        // Clear nudge timeout
+        if (nudgeTimeout) {
+            clearTimeout(nudgeTimeout);
+            nudgeTimeout = null;
+        }
+    }
+
+    /**
+     * Dismiss speech bubble permanently
+     */
+    function dismissSpeechBubble() {
+        localStorage.setItem(NUDGE_DISMISSED_KEY, 'true');
+        hideSpeechBubble();
+    }
+
+    /**
+     * Schedule speech bubble nudge after delay
+     */
+    function scheduleNudge() {
+        // Don't schedule if already dismissed
+        if (localStorage.getItem(NUDGE_DISMISSED_KEY)) {
+            return;
+        }
+
+        nudgeTimeout = setTimeout(() => {
+            showSpeechBubble();
+        }, 5000); // 5 second delay
     }
 
     /**
@@ -396,8 +612,12 @@
             }
         });
 
-        // Create iframe
-        const widgetUrl = `${config.apiUrl}/widget.html?course_id=${courseData.course_id}&api_url=${encodeURIComponent(config.apiUrl)}`;
+        // Create iframe with lesson title
+        const lessonTitle = detectLessonTitle();
+        let widgetUrl = `${config.apiUrl}/widget.html?course_id=${courseData.course_id}&api_url=${encodeURIComponent(config.apiUrl)}`;
+        if (lessonTitle) {
+            widgetUrl += `&lesson_title=${encodeURIComponent(lessonTitle)}`;
+        }
 
         widgetIframe = document.createElement('iframe');
         widgetIframe.src = widgetUrl;
@@ -421,6 +641,9 @@
      */
     function toggleWidget() {
         isOpen = !isOpen;
+
+        // Hide speech bubble when widget opens
+        hideSpeechBubble();
 
         if (isOpen) {
             // Open
@@ -505,6 +728,9 @@
         // Event listeners
         document.addEventListener('click', handleClickOutside);
         document.addEventListener('keydown', handleEscapeKey);
+
+        // Schedule speech bubble nudge
+        scheduleNudge();
 
         console.log('[InCourseAssistant] Widget loaded for course:', courseData.course_name);
     }

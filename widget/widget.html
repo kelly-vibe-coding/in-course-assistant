@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Course Assistant</title>
+    <!-- Prism.js for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css">
     <style>
         * {
             margin: 0;
@@ -32,6 +34,44 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            position: relative;
+        }
+
+        .header-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(255,255,255,0.15);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .header-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .header-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: white;
+        }
+
+        .header-btn.quiz-btn {
+            background: rgba(95, 207, 180, 0.3);
+        }
+
+        .header-btn.quiz-btn:hover {
+            background: rgba(95, 207, 180, 0.5);
         }
 
         .chat-header-icon {
@@ -326,6 +366,52 @@
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
+
+        /* Complexity toggle */
+        .complexity-toggle {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            font-size: 11px;
+        }
+
+        .complexity-toggle button {
+            padding: 4px 8px;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.7);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .complexity-toggle button.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .complexity-toggle button:hover:not(.active) {
+            color: white;
+        }
+
+        /* Onboarding message */
+        .onboarding-message {
+            background: linear-gradient(135deg, rgba(95, 207, 180, 0.1), rgba(13, 43, 62, 0.1));
+            border: 1px solid rgba(95, 207, 180, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .onboarding-message strong {
+            color: #0D2B3E;
+        }
     </style>
 </head>
 <body>
@@ -337,6 +423,24 @@
             <div class="chat-header-info">
                 <h1 id="header-title">Course Assistant</h1>
                 <p id="header-subtitle">Ask questions about this course</p>
+            </div>
+            <div class="header-actions">
+                <div class="complexity-toggle" id="complexity-toggle" title="Response detail level">
+                    <button data-level="simple">Simple</button>
+                    <button data-level="detailed" class="active">Detailed</button>
+                </div>
+                <button class="header-btn quiz-btn" id="quiz-btn" title="Quiz me on this lesson">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                </button>
+                <button class="header-btn" id="new-chat-btn" title="Start new conversation">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14M5 12h14"></path>
+                    </svg>
+                </button>
             </div>
         </div>
 
@@ -373,14 +477,30 @@
         </div>
     </div>
 
+    <!-- Prism.js for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const courseId = urlParams.get('course_id');
         const apiUrl = urlParams.get('api_url') || 'http://localhost:8000';
+        const lessonTitle = urlParams.get('lesson_title') || '';
+
+        // Storage keys
+        const STORAGE_KEY = `course_assistant_history_${courseId}`;
+        const ONBOARDED_KEY = `course_assistant_onboarded`;
+        const COMPLEXITY_KEY = `course_assistant_complexity_${courseId}`;
 
         let conversationHistory = [];
         let isLoading = false;
         let config = null;
+        let complexityLevel = localStorage.getItem(COMPLEXITY_KEY) || 'detailed';
 
         const defaultConfig = {
             colors: {
@@ -422,9 +542,138 @@
         const errorBanner = document.getElementById('error-banner');
         const suggestionsContainer = document.getElementById('suggestions-container');
         const suggestionsList = document.getElementById('suggestions-list');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const quizBtn = document.getElementById('quiz-btn');
+        const complexityToggle = document.getElementById('complexity-toggle');
 
         // Feature flags
         const useStreaming = true; // Enable streaming responses
+
+        // === localStorage Persistence Functions ===
+        function loadConversationHistory() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    conversationHistory = JSON.parse(saved).slice(-50); // Keep last 50 messages
+                    renderSavedMessages();
+                    return true;
+                }
+            } catch (e) {
+                console.warn('Failed to load conversation history:', e);
+            }
+            return false;
+        }
+
+        function saveConversationHistory() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(conversationHistory.slice(-50)));
+            } catch (e) {
+                console.warn('Failed to save conversation history:', e);
+            }
+        }
+
+        function clearConversationHistory() {
+            conversationHistory = [];
+            localStorage.removeItem(STORAGE_KEY);
+
+            // Clear chat UI
+            chatMessages.innerHTML = '';
+
+            // Show welcome message again
+            const welcomeDiv = document.createElement('div');
+            welcomeDiv.className = 'welcome-message';
+            welcomeDiv.id = 'welcome-message';
+            welcomeDiv.innerHTML = `
+                <h2>👋 Welcome!</h2>
+                <p id="welcome-text">${config?.text?.welcomeMessage || defaultConfig.text.welcomeMessage}</p>
+            `;
+            chatMessages.appendChild(welcomeDiv);
+
+            // Re-apply dark mode styling if needed
+            if (window.widgetConfig?.isDark) {
+                const h2 = welcomeDiv.querySelector('h2');
+                const p = welcomeDiv.querySelector('p');
+                if (h2) h2.style.color = '#e2e8f0';
+                if (p) p.style.color = '#94a3b8';
+            }
+
+            // Show suggestions again
+            suggestionsContainer.style.display = 'flex';
+            loadSuggestions();
+        }
+
+        function renderSavedMessages() {
+            // Hide welcome message
+            if (welcomeMessage) welcomeMessage.style.display = 'none';
+
+            // Render each saved message
+            conversationHistory.forEach(msg => {
+                addMessageToUI(msg.content, msg.role, false);
+            });
+        }
+
+        // === Onboarding Functions ===
+        function showOnboardingIfNeeded() {
+            const hasOnboarded = localStorage.getItem(ONBOARDED_KEY);
+            if (!hasOnboarded && conversationHistory.length === 0) {
+                showOnboardingMessage();
+                localStorage.setItem(ONBOARDED_KEY, 'true');
+            }
+        }
+
+        function showOnboardingMessage() {
+            if (welcomeMessage) welcomeMessage.style.display = 'none';
+
+            const onboardingDiv = document.createElement('div');
+            onboardingDiv.className = 'onboarding-message';
+            onboardingDiv.innerHTML = `
+                <strong>Hi! I'm your course assistant.</strong> I've been trained on all the materials for this course, so feel free to ask me anything as you study!
+                <br><br>
+                💡 <strong>Tips:</strong> Use the <em>Quiz Me</em> button to test your understanding, or toggle between <em>Simple</em> and <em>Detailed</em> responses based on your needs.
+            `;
+
+            // Apply dark mode styling if needed
+            if (window.widgetConfig?.isDark) {
+                onboardingDiv.style.background = 'linear-gradient(135deg, rgba(95, 207, 180, 0.15), rgba(255,255,255,0.05))';
+                onboardingDiv.style.borderColor = 'rgba(95, 207, 180, 0.4)';
+                onboardingDiv.style.color = '#e2e8f0';
+            }
+
+            chatMessages.insertBefore(onboardingDiv, chatMessages.firstChild);
+        }
+
+        // === Complexity Toggle Functions ===
+        function initComplexityToggle() {
+            const buttons = complexityToggle.querySelectorAll('button');
+
+            // Set initial state
+            buttons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.level === complexityLevel);
+            });
+
+            // Add click handlers
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    complexityLevel = btn.dataset.level;
+                    localStorage.setItem(COMPLEXITY_KEY, complexityLevel);
+
+                    buttons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                });
+            });
+        }
+
+        // === Quiz Me Function ===
+        function triggerQuiz() {
+            if (isLoading) return;
+
+            const quizPrompt = lessonTitle
+                ? `Quiz me on what I've learned in the "${lessonTitle}" lesson!`
+                : "Quiz me on what I've learned so far in this course!";
+
+            chatInput.value = quizPrompt;
+            sendMessage();
+        }
 
         async function init() {
             if (!courseId) {
@@ -448,14 +697,29 @@
                 }
                 
                 applyConfig();
+                initComplexityToggle();
+
                 loadingEl.style.display = 'none';
                 chatContainer.style.display = 'flex';
 
-                // Load suggested questions (non-blocking)
-                loadSuggestions();
+                // Load saved conversation history
+                const hadHistory = loadConversationHistory();
+
+                // Show onboarding if first time
+                if (!hadHistory) {
+                    showOnboardingIfNeeded();
+                }
+
+                // Load suggested questions (non-blocking) only if no history
+                if (!hadHistory) {
+                    loadSuggestions();
+                } else {
+                    suggestionsContainer.style.display = 'none';
+                }
             } catch (error) {
                 config = defaultConfig;
                 applyConfig();
+                initComplexityToggle();
                 loadingEl.style.display = 'none';
                 chatContainer.style.display = 'flex';
                 showError('Failed to load course configuration.');
@@ -594,8 +858,11 @@
             // Escape HTML first
             html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-            // Code blocks (```code```)
-            html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+            // Code blocks with language detection (```lang code```)
+            html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+                const langClass = lang ? `language-${lang}` : 'language-plaintext';
+                return `<pre><code class="${langClass}">${code.trim()}</code></pre>`;
+            });
 
             // Inline code (`code`)
             html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -644,7 +911,8 @@
             errorBanner.classList.remove('show');
         }
 
-        function addMessage(content, role) {
+        // Unified function to add message to UI (used for both new and restored messages)
+        function addMessageToUI(content, role, shouldScroll = true) {
             if (welcomeMessage) welcomeMessage.style.display = 'none';
 
             const { colors, radius, isDark, messageBg, borderColor } = window.widgetConfig;
@@ -677,6 +945,15 @@
                 contentDiv.style.borderRadius = radius;
                 contentDiv.style.borderTopLeftRadius = '2px';
                 contentDiv.style.color = colors.messageText;
+
+                // Apply syntax highlighting
+                setTimeout(() => {
+                    contentDiv.querySelectorAll('pre code').forEach(block => {
+                        if (typeof Prism !== 'undefined') {
+                            Prism.highlightElement(block);
+                        }
+                    });
+                }, 0);
             } else {
                 contentDiv.style.background = colors.primary;
                 contentDiv.style.borderRadius = radius;
@@ -687,9 +964,15 @@
             messageDiv.appendChild(contentDiv);
             chatMessages.appendChild(messageDiv);
 
-            scrollToBottom();
+            if (shouldScroll) {
+                scrollToBottom();
+            }
 
-            return contentDiv; // Return for streaming updates
+            return contentDiv;
+        }
+
+        function addMessage(content, role) {
+            return addMessageToUI(content, role, true);
         }
 
         function createStreamingMessage() {
@@ -738,6 +1021,15 @@
             if (streamingMessage) {
                 streamingMessage.removeAttribute('id');
             }
+
+            // Apply syntax highlighting
+            setTimeout(() => {
+                contentDiv.querySelectorAll('pre code').forEach(block => {
+                    if (typeof Prism !== 'undefined') {
+                        Prism.highlightElement(block);
+                    }
+                });
+            }, 0);
         }
 
         function showTypingIndicator() {
@@ -789,6 +1081,7 @@
 
             addMessage(message, 'user');
             conversationHistory.push({ role: 'user', content: message });
+            saveConversationHistory();
 
             if (useStreaming) {
                 await sendMessageStreaming(message);
@@ -808,7 +1101,9 @@
                     body: JSON.stringify({
                         course_id: courseId,
                         message: message,
-                        conversation_history: conversationHistory.slice(0, -1)
+                        conversation_history: conversationHistory.slice(0, -1),
+                        lesson_title: lessonTitle || undefined,
+                        complexity: complexityLevel
                     })
                 });
 
@@ -844,6 +1139,7 @@
                                 if (data.done) {
                                     finalizeStreamingMessage(contentDiv, fullResponse);
                                     conversationHistory.push({ role: 'assistant', content: fullResponse });
+                                    saveConversationHistory();
                                 }
                             } catch (e) {
                                 // Skip invalid JSON lines
@@ -860,6 +1156,7 @@
                     finalizeStreamingMessage(contentDiv, fullResponse);
                     if (!conversationHistory.find(m => m.content === fullResponse)) {
                         conversationHistory.push({ role: 'assistant', content: fullResponse });
+                        saveConversationHistory();
                     }
                 }
 
@@ -870,6 +1167,7 @@
 
                 showError(error.message || 'Something went wrong.');
                 conversationHistory.pop();
+                saveConversationHistory();
             } finally {
                 isLoading = false;
                 sendButton.disabled = false;
@@ -887,7 +1185,9 @@
                     body: JSON.stringify({
                         course_id: courseId,
                         message: message,
-                        conversation_history: conversationHistory.slice(0, -1)
+                        conversation_history: conversationHistory.slice(0, -1),
+                        lesson_title: lessonTitle || undefined,
+                        complexity: complexityLevel
                     })
                 });
 
@@ -900,11 +1200,13 @@
                 hideTypingIndicator();
                 addMessage(data.response, 'assistant');
                 conversationHistory.push({ role: 'assistant', content: data.response });
+                saveConversationHistory();
 
             } catch (error) {
                 hideTypingIndicator();
                 showError(error.message || 'Something went wrong.');
                 conversationHistory.pop();
+                saveConversationHistory();
             } finally {
                 isLoading = false;
                 sendButton.disabled = false;
@@ -920,6 +1222,8 @@
         });
 
         sendButton.addEventListener('click', sendMessage);
+        newChatBtn.addEventListener('click', clearConversationHistory);
+        quizBtn.addEventListener('click', triggerQuiz);
 
         init();
     </script>

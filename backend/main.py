@@ -557,6 +557,8 @@ class ChatRequest(BaseModel):
     course_id: str = Field(..., min_length=36, max_length=36)
     message: str = Field(..., min_length=1)
     conversation_history: Optional[list] = []
+    lesson_title: Optional[str] = Field(None, max_length=500)  # Current lesson context
+    complexity: Optional[str] = Field("detailed", pattern="^(simple|detailed)$")  # Response complexity level
 
     @validator('course_id')
     def validate_course_id(cls, v):
@@ -575,6 +577,12 @@ class ChatRequest(BaseModel):
         if v and len(v) > MAX_CONVERSATION_HISTORY:
             # Truncate to most recent messages
             return v[-MAX_CONVERSATION_HISTORY:]
+        return v
+
+    @validator('lesson_title')
+    def sanitize_lesson_title(cls, v):
+        if v:
+            return sanitize_string(v, max_length=500)
         return v
 
 
@@ -753,10 +761,41 @@ def chat(request: ChatRequest, req: Request, db: Session = Depends(get_db)):
     else:
         provider, model = get_configured_provider_and_model()
 
+    # Build complexity instructions based on user preference
+    complexity = getattr(request, 'complexity', 'detailed') or 'detailed'
+    complexity_instructions = ""
+    if complexity == "simple":
+        complexity_instructions = """
+RESPONSE STYLE: Keep your responses CONCISE and SIMPLE.
+- Use short sentences and simple language
+- Focus on the key point without elaboration
+- Avoid jargon unless necessary
+- Aim for responses that are easy to quickly scan and understand
+- Use bullet points when listing information"""
+    else:
+        complexity_instructions = """
+RESPONSE STYLE: Provide DETAILED and THOROUGH responses.
+- Explain concepts fully with context and examples
+- Use proper terminology and explain it when needed
+- Connect ideas to help build deeper understanding
+- Include relevant details that enrich the explanation"""
+
+    # Build lesson context if provided
+    lesson_title = getattr(request, 'lesson_title', None)
+    lesson_context = ""
+    if lesson_title:
+        lesson_context = f"""
+CURRENT LESSON CONTEXT: The learner is currently studying "{lesson_title}".
+- Prioritize information relevant to this specific lesson
+- When answering questions, consider what they're learning in this lesson
+- If they ask to be quizzed, focus questions on this lesson's content"""
+
     # Build the system prompt - Smart prompt that stays on-topic but allows helpful context
     base_system = course.system_prompt or f"""You are a helpful learning assistant for the course "{course.name}".
 
 PRIMARY ROLE: Help learners understand and succeed in this course.
+{complexity_instructions}
+{lesson_context}
 
 GUIDELINES:
 1. COURSE CONTENT IS YOUR PRIMARY SOURCE - Always ground your answers in the course material provided below when relevant.
@@ -773,6 +812,12 @@ GUIDELINES:
 4. BE A GREAT LEARNING AID - Your goal is to help learners truly understand the material, not just recite it. Explain concepts clearly, encourage questions, and help them connect ideas.
 
 5. WHEN UNCERTAIN - If the course content doesn't cover something but it's related to the topic, you can share your knowledge while noting: "This isn't specifically covered in the course, but here's what I can share..."
+
+6. QUIZ MODE - When the learner asks to be quizzed:
+   - Ask one question at a time
+   - Wait for their answer before giving feedback
+   - Provide encouraging feedback and explanations
+   - Keep track of their progress in the conversation
 
 COURSE NAME: {course.name}"""
 
@@ -833,10 +878,41 @@ async def chat_stream(request: ChatRequest, req: Request, db: Session = Depends(
     else:
         provider, model = get_configured_provider_and_model()
 
+    # Build complexity instructions based on user preference
+    complexity = getattr(request, 'complexity', 'detailed') or 'detailed'
+    complexity_instructions = ""
+    if complexity == "simple":
+        complexity_instructions = """
+RESPONSE STYLE: Keep your responses CONCISE and SIMPLE.
+- Use short sentences and simple language
+- Focus on the key point without elaboration
+- Avoid jargon unless necessary
+- Aim for responses that are easy to quickly scan and understand
+- Use bullet points when listing information"""
+    else:
+        complexity_instructions = """
+RESPONSE STYLE: Provide DETAILED and THOROUGH responses.
+- Explain concepts fully with context and examples
+- Use proper terminology and explain it when needed
+- Connect ideas to help build deeper understanding
+- Include relevant details that enrich the explanation"""
+
+    # Build lesson context if provided
+    lesson_title = getattr(request, 'lesson_title', None)
+    lesson_context = ""
+    if lesson_title:
+        lesson_context = f"""
+CURRENT LESSON CONTEXT: The learner is currently studying "{lesson_title}".
+- Prioritize information relevant to this specific lesson
+- When answering questions, consider what they're learning in this lesson
+- If they ask to be quizzed, focus questions on this lesson's content"""
+
     # Build the system prompt
     base_system = course.system_prompt or f"""You are a helpful learning assistant for the course "{course.name}".
 
 PRIMARY ROLE: Help learners understand and succeed in this course.
+{complexity_instructions}
+{lesson_context}
 
 GUIDELINES:
 1. COURSE CONTENT IS YOUR PRIMARY SOURCE - Always ground your answers in the course material provided below when relevant.
@@ -853,6 +929,12 @@ GUIDELINES:
 4. BE A GREAT LEARNING AID - Your goal is to help learners truly understand the material, not just recite it. Explain concepts clearly, encourage questions, and help them connect ideas.
 
 5. WHEN UNCERTAIN - If the course content doesn't cover something but it's related to the topic, you can share your knowledge while noting: "This isn't specifically covered in the course, but here's what I can share..."
+
+6. QUIZ MODE - When the learner asks to be quizzed:
+   - Ask one question at a time
+   - Wait for their answer before giving feedback
+   - Provide encouraging feedback and explanations
+   - Keep track of their progress in the conversation
 
 COURSE NAME: {course.name}"""
 
