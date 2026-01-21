@@ -367,46 +367,41 @@
             100% { background-position: -200% 0; }
         }
 
-        /* Complexity toggle */
-        .complexity-toggle {
+        /* Quiz button with text label */
+        .quiz-btn-text {
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 3px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 6px;
-            font-size: 11px;
-        }
-
-        .complexity-toggle button {
-            padding: 4px 8px;
+            padding: 6px 12px;
             border: none;
-            background: transparent;
-            color: rgba(255,255,255,0.7);
-            border-radius: 4px;
+            background: rgba(95, 207, 180, 0.25);
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 11px;
-            transition: all 0.2s;
+            font-size: 12px;
+            font-weight: 500;
+            color: white;
+            transition: background 0.2s;
         }
 
-        .complexity-toggle button.active {
-            background: rgba(255,255,255,0.2);
-            color: white;
+        .quiz-btn-text:hover {
+            background: rgba(95, 207, 180, 0.4);
         }
 
-        .complexity-toggle button:hover:not(.active) {
-            color: white;
+        .quiz-btn-text svg {
+            width: 14px;
+            height: 14px;
+            stroke: white;
         }
 
         /* Onboarding message */
         .onboarding-message {
-            background: linear-gradient(135deg, rgba(95, 207, 180, 0.1), rgba(13, 43, 62, 0.1));
-            border: 1px solid rgba(95, 207, 180, 0.3);
+            background: linear-gradient(135deg, rgba(95, 207, 180, 0.1), rgba(13, 43, 62, 0.05));
+            border: 1px solid rgba(95, 207, 180, 0.25);
             border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 16px;
-            font-size: 14px;
-            line-height: 1.5;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            line-height: 1.4;
         }
 
         .onboarding-message strong {
@@ -425,16 +420,12 @@
                 <p id="header-subtitle">Ask questions about this course</p>
             </div>
             <div class="header-actions">
-                <div class="complexity-toggle" id="complexity-toggle" title="Response detail level">
-                    <button data-level="simple">Simple</button>
-                    <button data-level="detailed" class="active">Detailed</button>
-                </div>
-                <button class="header-btn quiz-btn" id="quiz-btn" title="Quiz me on this lesson">
+                <button class="quiz-btn-text" id="quiz-btn" title="Quiz me on this lesson">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                     </svg>
+                    Quiz Me
                 </button>
                 <button class="header-btn" id="new-chat-btn" title="Start new conversation">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -495,12 +486,10 @@
         // Storage keys
         const STORAGE_KEY = `course_assistant_history_${courseId}`;
         const ONBOARDED_KEY = `course_assistant_onboarded`;
-        const COMPLEXITY_KEY = `course_assistant_complexity_${courseId}`;
 
         let conversationHistory = [];
         let isLoading = false;
         let config = null;
-        let complexityLevel = localStorage.getItem(COMPLEXITY_KEY) || 'detailed';
 
         const defaultConfig = {
             colors: {
@@ -544,7 +533,6 @@
         const suggestionsList = document.getElementById('suggestions-list');
         const newChatBtn = document.getElementById('new-chat-btn');
         const quizBtn = document.getElementById('quiz-btn');
-        const complexityToggle = document.getElementById('complexity-toggle');
 
         // Feature flags
         const useStreaming = true; // Enable streaming responses
@@ -627,9 +615,7 @@
             const onboardingDiv = document.createElement('div');
             onboardingDiv.className = 'onboarding-message';
             onboardingDiv.innerHTML = `
-                <strong>Hi! I'm your course assistant.</strong> I've been trained on all the materials for this course, so feel free to ask me anything as you study!
-                <br><br>
-                💡 <strong>Tips:</strong> Use the <em>Quiz Me</em> button to test your understanding, or toggle between <em>Simple</em> and <em>Detailed</em> responses based on your needs.
+                <strong>Hi!</strong> I'm trained on this course's materials. Ask me anything or tap <strong>Quiz Me</strong> to test yourself!
             `;
 
             // Apply dark mode styling if needed
@@ -640,27 +626,6 @@
             }
 
             chatMessages.insertBefore(onboardingDiv, chatMessages.firstChild);
-        }
-
-        // === Complexity Toggle Functions ===
-        function initComplexityToggle() {
-            const buttons = complexityToggle.querySelectorAll('button');
-
-            // Set initial state
-            buttons.forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.level === complexityLevel);
-            });
-
-            // Add click handlers
-            buttons.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    complexityLevel = btn.dataset.level;
-                    localStorage.setItem(COMPLEXITY_KEY, complexityLevel);
-
-                    buttons.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                });
-            });
         }
 
         // === Quiz Me Function ===
@@ -697,7 +662,6 @@
                 }
                 
                 applyConfig();
-                initComplexityToggle();
 
                 loadingEl.style.display = 'none';
                 chatContainer.style.display = 'flex';
@@ -719,7 +683,6 @@
             } catch (error) {
                 config = defaultConfig;
                 applyConfig();
-                initComplexityToggle();
                 loadingEl.style.display = 'none';
                 chatContainer.style.display = 'flex';
                 showError('Failed to load course configuration.');
@@ -1102,8 +1065,7 @@
                         course_id: courseId,
                         message: message,
                         conversation_history: conversationHistory.slice(0, -1),
-                        lesson_title: lessonTitle || undefined,
-                        complexity: complexityLevel
+                        lesson_title: lessonTitle || undefined
                     })
                 });
 
@@ -1186,8 +1148,7 @@
                         course_id: courseId,
                         message: message,
                         conversation_history: conversationHistory.slice(0, -1),
-                        lesson_title: lessonTitle || undefined,
-                        complexity: complexityLevel
+                        lesson_title: lessonTitle || undefined
                     })
                 });
 
