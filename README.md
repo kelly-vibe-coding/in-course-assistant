@@ -56,15 +56,16 @@ The assistant is designed to:
 
 Your IT team will give you a URL like `https://assistant.yourcompany.com`. Open it in your browser.
 
-On your first visit, you'll create an admin account (username and password). This is the only account that can manage course assistants.
+On your first visit, you'll create an admin account with your email and password. This first account becomes the administrator who can manage other users.
 
 ### Step 2: Add Your API Key
 
 Before creating assistants, you need to connect at least one AI provider:
 
-1. Click **"API Keys"** in the top navigation (the lock icon)
-2. Paste your API key for the provider(s) you want to use
-3. Click **"Save API Keys"**
+1. Click **"Settings"** in the top navigation (the gear icon)
+2. Select **"API & Privacy"**
+3. Paste your API key for the provider(s) you want to use
+4. Click **"Save Settings"**
 
 You can add keys for multiple providers. Each course can use a different one.
 
@@ -144,9 +145,34 @@ In the admin dashboard, create or edit a course bot and paste the Skilljar Cours
 
 ---
 
+## Multi-User Access
+
+The admin dashboard supports multiple users, so your team can collaborate on managing course assistants.
+
+### User Roles
+
+- **Administrator** (first user created): Can add/remove users, plus all standard permissions
+- **Users**: Can create, edit, and delete course bots, manage API keys, view analytics, and customize widget appearance
+
+### Adding Team Members
+
+1. Click your **avatar** in the top-right corner
+2. Click **"Settings"** → **"Manage Users"** (admin only)
+3. Enter their email and a temporary password
+4. Share the credentials—they can change their password after logging in
+
+### Changing Your Password
+
+1. Click your **avatar** in the top-right corner
+2. Select **"Account Settings"**
+3. Enter your current password and new password
+4. Click **"Update Password"**
+
+---
+
 ## Customizing the Appearance
 
-Click **"Widget Style"** in the navigation to customize how the chat looks:
+Click **"Settings"** → **"Widget Style"** to customize how the chat looks:
 
 - **Theme**: Light or dark mode
 - **Colors**: Match your brand colors
@@ -195,6 +221,36 @@ Click **Delete** on the course card. This removes it permanently and the chat bu
 
 ### Preview
 Open the Skilljar course to see exactly what learners experience.
+
+---
+
+## Content Intelligence (Analytics)
+
+Click **"Analytics"** in the navigation to see insights about how learners use your course assistants.
+
+### What You Can See
+
+- **Overview Stats**: Total conversations, content gaps detected, grounding percentage
+- **Content Gaps**: Questions the AI couldn't answer from your course content—these reveal what's missing
+- **Lesson Friction**: Which lessons generate the most questions (heatmap view)
+- **Conversations**: Review actual chat sessions (requires Full Logging enabled)
+
+### How It Works
+
+The AI automatically tags each response with metadata:
+- **Grounding source**: Was the answer from course content, general knowledge, or uncertain?
+- **Content gap detected**: Did the learner ask about something not covered?
+- **Gap topic**: What topic was missing?
+
+This helps you identify where to improve your course content.
+
+### Privacy Controls
+
+You control how much data is stored. Go to **Settings** → **API & Privacy**:
+
+- **Analytics Only** (recommended): Tracks patterns without storing message content
+- **Full Logging**: Stores complete conversations for review
+- **Disabled**: No analytics collected
 
 ---
 
@@ -317,18 +373,33 @@ in-course-assistant/
 | `/health` | Health check |
 | `/api/courses` | Course CRUD |
 | `/api/chat/stream` | Streaming chat endpoint |
-| `/api/settings` | API key management |
+| `/api/settings` | API key and privacy settings |
 | `/api/widget-style` | Widget appearance settings |
+| `/api/users` | User management (admin only) |
+| `/api/users/me` | Current user info and password change |
+| `/api/analytics/*` | Content intelligence analytics |
 
 ### Data Storage
 
 | Data | Stored | Notes |
 |------|--------|-------|
-| Admin credentials | Yes | Hashed with bcrypt |
+| User credentials | Yes | Hashed with bcrypt, multiple users supported |
 | API keys | Yes | Per-provider storage |
 | Course content | Yes | Text content + settings |
-| Chat messages | No | Not persisted |
+| Chat analytics | Configurable | See Privacy Settings below |
 | Learner identity | No | No PII collected |
+
+### Privacy Settings
+
+The admin can control what chat data is stored for analytics:
+
+| Setting | What's Stored | Analytics Available |
+|---------|---------------|---------------------|
+| **Analytics Only** (default) | Metadata only (grounding source, gaps, response times) | Content gaps, lesson friction, question clustering |
+| **Full Logging** | Complete conversation history | All analytics + conversation review |
+| **Disabled** | Nothing | No analytics |
+
+Configure this in **Settings** → **API & Privacy** → **Analytics & Conversation Logging**.
 
 ### Third-Party AI Services
 
