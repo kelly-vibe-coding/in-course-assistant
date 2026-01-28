@@ -1372,6 +1372,47 @@
                         <!-- Description will be updated by JS -->
                     </div>
                 </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                <!-- Change Password Section -->
+                <div class="form-group">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">Change Password</label>
+                    <p class="hint" style="margin-bottom: 12px;">
+                        Update your login password.
+                    </p>
+                    <input type="password" id="current-password" placeholder="Current password" style="margin-bottom: 8px;">
+                    <input type="password" id="new-password" placeholder="New password (min 8 characters)" style="margin-bottom: 8px;">
+                    <input type="password" id="confirm-password" placeholder="Confirm new password" style="margin-bottom: 12px;">
+                    <button class="btn btn-secondary" onclick="changePassword()" style="width: 100%;">Update Password</button>
+                    <div id="password-change-msg" style="display: none; margin-top: 8px; padding: 8px; border-radius: 6px; font-size: 13px;"></div>
+                </div>
+
+                <!-- User Management Section (admin only) -->
+                <div id="user-management-section" style="display: none;">
+                    <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                    <div class="form-group">
+                        <label style="font-weight: 600; margin-bottom: 8px; display: block;">User Management</label>
+                        <p class="hint" style="margin-bottom: 12px;">
+                            Add or remove users who can access the admin dashboard. All users can view and edit all content.
+                        </p>
+
+                        <!-- Existing Users List -->
+                        <div id="users-list" style="margin-bottom: 16px;">
+                            <!-- Populated by JS -->
+                        </div>
+
+                        <!-- Add New User Form -->
+                        <div style="padding: 16px; background: var(--bg-subtle); border-radius: 8px;">
+                            <label style="font-weight: 500; font-size: 14px; margin-bottom: 8px; display: block;">Add New User</label>
+                            <input type="email" id="new-user-email" placeholder="user@example.com" style="margin-bottom: 8px;">
+                            <input type="password" id="new-user-password" placeholder="Temporary password (min 8 characters)" style="margin-bottom: 12px;">
+                            <button class="btn btn-primary" onclick="addUser()" style="width: 100%;">Add User</button>
+                            <div id="add-user-msg" style="display: none; margin-top: 8px; padding: 8px; border-radius: 6px; font-size: 13px;"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <span id="settings-saved-msg" style="display: none; color: #059669; font-size: 14px; font-weight: 500;">✓ Saved</span>
@@ -2075,6 +2116,7 @@
         // =====================
         function openSettingsModal() {
             loadApiKeys();
+            loadCurrentUser();
             document.getElementById('settings-modal').classList.add('show');
         }
 
@@ -2172,6 +2214,189 @@
                 console.error('Failed to save settings:', error);
                 showToast('Failed to save settings', 'error');
             }
+        }
+
+        // =====================
+        // User Management
+        // =====================
+        let currentUser = null;
+
+        async function loadCurrentUser() {
+            try {
+                const response = await fetch(`${API_URL}/api/users/me`, {
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    currentUser = await response.json();
+                    // Show user management section only for admin (first user)
+                    const userMgmtSection = document.getElementById('user-management-section');
+                    if (currentUser.is_first_user) {
+                        userMgmtSection.style.display = 'block';
+                        loadUsers();
+                    } else {
+                        userMgmtSection.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load current user:', error);
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_URL}/api/users`, {
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    const users = await response.json();
+                    renderUsersList(users);
+                }
+            } catch (error) {
+                console.error('Failed to load users:', error);
+            }
+        }
+
+        function renderUsersList(users) {
+            const container = document.getElementById('users-list');
+            if (users.length === 0) {
+                container.innerHTML = '<p class="hint">No users found.</p>';
+                return;
+            }
+
+            container.innerHTML = users.map(user => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 8px;">
+                    <div>
+                        <span style="font-weight: 500;">${user.email}</span>
+                        ${user.is_first_user ? '<span style="margin-left: 8px; font-size: 11px; padding: 2px 6px; background: #dbeafe; color: #1e40af; border-radius: 4px;">Admin</span>' : ''}
+                    </div>
+                    ${!user.is_first_user ? `
+                        <button class="btn btn-secondary" style="padding: 4px 12px; font-size: 12px;" onclick="deleteUser('${user.id}', '${user.email}')">Remove</button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function addUser() {
+            const email = document.getElementById('new-user-email').value.trim();
+            const password = document.getElementById('new-user-password').value;
+            const msgEl = document.getElementById('add-user-msg');
+
+            // Validate
+            if (!email || !password) {
+                showUserMessage(msgEl, 'Please enter both email and password.', 'error');
+                return;
+            }
+
+            if (password.length < 8) {
+                showUserMessage(msgEl, 'Password must be at least 8 characters.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (response.ok) {
+                    document.getElementById('new-user-email').value = '';
+                    document.getElementById('new-user-password').value = '';
+                    showUserMessage(msgEl, 'User added successfully!', 'success');
+                    loadUsers();
+                } else {
+                    const error = await response.json();
+                    showUserMessage(msgEl, error.detail || 'Failed to add user.', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to add user:', error);
+                showUserMessage(msgEl, 'Failed to add user.', 'error');
+            }
+        }
+
+        async function deleteUser(userId, userEmail) {
+            if (!confirm(`Are you sure you want to remove ${userEmail}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/users/${userId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    showToast('User removed');
+                    loadUsers();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to remove user', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to delete user:', error);
+                showToast('Failed to remove user', 'error');
+            }
+        }
+
+        async function changePassword() {
+            const currentPwd = document.getElementById('current-password').value;
+            const newPwd = document.getElementById('new-password').value;
+            const confirmPwd = document.getElementById('confirm-password').value;
+            const msgEl = document.getElementById('password-change-msg');
+
+            // Validate
+            if (!currentPwd || !newPwd || !confirmPwd) {
+                showUserMessage(msgEl, 'Please fill in all password fields.', 'error');
+                return;
+            }
+
+            if (newPwd.length < 8) {
+                showUserMessage(msgEl, 'New password must be at least 8 characters.', 'error');
+                return;
+            }
+
+            if (newPwd !== confirmPwd) {
+                showUserMessage(msgEl, 'New passwords do not match.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/users/me/password`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        current_password: currentPwd,
+                        new_password: newPwd
+                    })
+                });
+
+                if (response.ok) {
+                    document.getElementById('current-password').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-password').value = '';
+                    showUserMessage(msgEl, 'Password changed successfully! Please log in again with your new password.', 'success');
+                } else {
+                    const error = await response.json();
+                    showUserMessage(msgEl, error.detail || 'Failed to change password.', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to change password:', error);
+                showUserMessage(msgEl, 'Failed to change password.', 'error');
+            }
+        }
+
+        function showUserMessage(element, message, type) {
+            element.textContent = message;
+            element.style.display = 'block';
+            element.style.background = type === 'error' ? '#fee2e2' : '#d1fae5';
+            element.style.color = type === 'error' ? '#991b1b' : '#065f46';
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 5000);
         }
 
         // =====================

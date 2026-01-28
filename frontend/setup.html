@@ -179,8 +179,8 @@
 
         <form id="setup-form">
             <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" placeholder="admin" required minlength="3" maxlength="50" autocomplete="username">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="you@example.com" required minlength="5" maxlength="255" autocomplete="email">
             </div>
 
             <div class="form-group">
@@ -229,13 +229,14 @@
             e.preventDefault();
             hideMessages();
 
-            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
 
-            // Validate
-            if (username.length < 3) {
-                showError('Username must be at least 3 characters.');
+            // Validate email format
+            const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            if (!emailPattern.test(email)) {
+                showError('Please enter a valid email address.');
                 return;
             }
 
@@ -259,7 +260,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ email, password })
                 });
 
                 const data = await response.json();

@@ -37,12 +37,13 @@ DEFAULT_WIDGET_CONFIG = {
 
 
 class AdminUser(Base):
-    """Admin user for the dashboard. Only one admin is supported."""
+    """Admin user for the dashboard. Multiple users supported."""
     __tablename__ = "admin_users"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    username = Column(String(255), nullable=False, unique=True)
+    email = Column(String(255), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
+    is_first_user = Column(Boolean, default=False)  # Only first user can manage other users
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def set_password(self, password: str):
@@ -201,3 +202,25 @@ def _run_migrations():
                 conn.execute(text("ALTER TABLE llm_settings ADD COLUMN analytics_logging_level VARCHAR(20) DEFAULT 'analytics_only' NOT NULL"))
                 conn.commit()
                 print("Migration: Added analytics_logging_level column to llm_settings table")
+
+    # Check if admin_users table exists for multi-user migration
+    if 'admin_users' in inspector.get_table_names():
+        columns = [col['name'] for col in inspector.get_columns('admin_users')]
+
+        # Migration: Rename username to email if needed
+        if 'username' in columns and 'email' not in columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE admin_users RENAME COLUMN username TO email"))
+                conn.commit()
+                print("Migration: Renamed username column to email in admin_users table")
+            # Refresh columns list after rename
+            columns = [col['name'] for col in inspector.get_columns('admin_users')]
+
+        # Migration: Add is_first_user column if it doesn't exist
+        if 'is_first_user' not in columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE admin_users ADD COLUMN is_first_user BOOLEAN DEFAULT 0"))
+                # Mark existing user as first user and update email
+                conn.execute(text("UPDATE admin_users SET is_first_user = 1, email = 'kelly.r.mullaney@gmail.com' WHERE email = 'kellymullaney'"))
+                conn.commit()
+                print("Migration: Added is_first_user column and migrated existing user")

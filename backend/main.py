@@ -6,6 +6,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field, validator
 from sqlalchemy.orm import Session
 from typing import Optional, AsyncGenerator, Literal
+from datetime import datetime
 from collections import defaultdict
 from enum import Enum
 import anthropic
@@ -60,11 +61,11 @@ def is_setup_complete() -> bool:
 def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     """
     Verify admin credentials against the database.
-    Returns the username if valid, raises 401 if not.
+    Returns the email if valid, raises 401 if not.
     """
     db = SessionLocal()
     try:
-        admin = db.query(AdminUser).filter(AdminUser.username == credentials.username).first()
+        admin = db.query(AdminUser).filter(AdminUser.email == credentials.username).first()
 
         if not admin or not admin.verify_password(credentials.password):
             raise HTTPException(
@@ -76,6 +77,43 @@ def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(securit
         return credentials.username
     finally:
         db.close()
+
+
+def get_current_user(credentials: HTTPBasicCredentials = Depends(security)) -> AdminUser:
+    """
+    Get the current authenticated user object.
+    Returns the full AdminUser if valid, raises 401 if not.
+    """
+    db = SessionLocal()
+    try:
+        user = db.query(AdminUser).filter(AdminUser.email == credentials.username).first()
+
+        if not user or not user.verify_password(credentials.password):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid credentials",
+                headers={"WWW-Authenticate": "Basic realm=\"Admin Access\""}
+            )
+
+        # Detach user from session so it can be used after session closes
+        db.expunge(user)
+        return user
+    finally:
+        db.close()
+
+
+def require_first_user(credentials: HTTPBasicCredentials = Depends(security)) -> AdminUser:
+    """
+    Dependency that requires the first user (admin) for user management.
+    Only the first user created can add/remove other users.
+    """
+    user = get_current_user(credentials)
+    if not user.is_first_user:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the admin can manage users"
+        )
+    return user
 
 # =============================================================================
 # LLM PROVIDER CONFIGURATION
@@ -1885,7 +1923,7 @@ def _course_to_response(course: Course) -> CourseResponse:
 # =============================================================================
 
 class SetupRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
+    email: str = Field(..., min_length=5, max_length=255)
     password: str = Field(..., min_length=8, max_length=100)
 
 
@@ -1914,25 +1952,197 @@ async def create_admin_account(setup: SetupRequest):
             detail="Setup already complete. Admin account already exists."
         )
 
-    # Validate username
-    if not re.match(r'^[a-zA-Z0-9_-]+$', setup.username):
+    # Validate email format
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, setup.email):
         raise HTTPException(
             status_code=400,
-            detail="Username can only contain letters, numbers, underscores, and hyphens."
+            detail="Please enter a valid email address."
         )
 
     db = SessionLocal()
     try:
-        # Create admin user
-        admin = AdminUser(username=setup.username)
+        # Create admin user - first user gets admin privileges
+        admin = AdminUser(email=setup.email, is_first_user=True)
         admin.set_password(setup.password)
         db.add(admin)
         db.commit()
 
-        return {"message": "Admin account created successfully", "username": setup.username}
+        return {"message": "Admin account created successfully", "email": setup.email}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create admin account: {str(e)}")
+    finally:
+        db.close()
+
+
+# =============================================================================
+# USER MANAGEMENT API
+# =============================================================================
+
+class UserCreate(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255)
+    password: str = Field(..., min_length=8, max_length=100)
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    is_first_user: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=100)
+
+
+@app.get("/api/users/me")
+async def get_current_user_info(request: Request):
+    """Get info about the current logged-in user."""
+    credentials = await security(request)
+    user = get_current_user(credentials)
+
+    return {
+        "id": user.id,
+        "email": user.email,
+        "is_first_user": user.is_first_user,
+        "created_at": user.created_at.isoformat()
+    }
+
+
+@app.put("/api/users/me/password")
+async def change_own_password(request: Request, password_change: PasswordChange):
+    """Change the current user's password."""
+    credentials = await security(request)
+    user = get_current_user(credentials)
+
+    # Verify current password
+    if not user.verify_password(password_change.current_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Current password is incorrect"
+        )
+
+    db = SessionLocal()
+    try:
+        # Get fresh user from DB
+        db_user = db.query(AdminUser).filter(AdminUser.id == user.id).first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        db_user.set_password(password_change.new_password)
+        db.commit()
+
+        return {"message": "Password changed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to change password: {str(e)}")
+    finally:
+        db.close()
+
+
+@app.get("/api/users")
+async def list_users(request: Request):
+    """List all users. Only accessible by the first user (admin)."""
+    credentials = await security(request)
+    require_first_user(credentials)
+
+    db = SessionLocal()
+    try:
+        users = db.query(AdminUser).order_by(AdminUser.created_at).all()
+        return [
+            {
+                "id": u.id,
+                "email": u.email,
+                "is_first_user": u.is_first_user,
+                "created_at": u.created_at.isoformat()
+            }
+            for u in users
+        ]
+    finally:
+        db.close()
+
+
+@app.post("/api/users")
+async def create_user(request: Request, user_create: UserCreate):
+    """Create a new user. Only accessible by the first user (admin)."""
+    credentials = await security(request)
+    require_first_user(credentials)
+
+    # Validate email format
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, user_create.email):
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a valid email address."
+        )
+
+    db = SessionLocal()
+    try:
+        # Check if email already exists
+        existing = db.query(AdminUser).filter(AdminUser.email == user_create.email).first()
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail="A user with this email already exists."
+            )
+
+        # Create new user (not first user, so no admin privileges)
+        new_user = AdminUser(email=user_create.email, is_first_user=False)
+        new_user.set_password(user_create.password)
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        return {
+            "id": new_user.id,
+            "email": new_user.email,
+            "is_first_user": new_user.is_first_user,
+            "created_at": new_user.created_at.isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
+    finally:
+        db.close()
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_user(request: Request, user_id: str):
+    """Delete a user. Only accessible by the first user (admin). Cannot delete self."""
+    credentials = await security(request)
+    admin = require_first_user(credentials)
+
+    # Prevent self-deletion
+    if user_id == admin.id:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot delete your own account."
+        )
+
+    db = SessionLocal()
+    try:
+        user = db.query(AdminUser).filter(AdminUser.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        db.delete(user)
+        db.commit()
+
+        return {"message": "User deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
     finally:
         db.close()
 
