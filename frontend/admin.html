@@ -1102,6 +1102,22 @@
                 </svg>
                 API & Privacy
             </button>
+            <button class="settings-btn" id="users-nav-btn" style="display: none;" onclick="openUsersModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                Users
+            </button>
+            <button class="settings-btn" onclick="openAccountModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                Account
+            </button>
         </div>
     </nav>
 
@@ -1373,51 +1389,71 @@
                     </div>
                 </div>
 
-                <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border-color);">
-
-                <!-- Change Password Section -->
-                <div class="form-group">
-                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">Change Password</label>
-                    <p class="hint" style="margin-bottom: 12px;">
-                        Update your login password.
-                    </p>
-                    <input type="password" id="current-password" placeholder="Current password" style="margin-bottom: 8px;">
-                    <input type="password" id="new-password" placeholder="New password (min 8 characters)" style="margin-bottom: 8px;">
-                    <input type="password" id="confirm-password" placeholder="Confirm new password" style="margin-bottom: 12px;">
-                    <button class="btn btn-secondary" onclick="changePassword()" style="width: 100%;">Update Password</button>
-                    <div id="password-change-msg" style="display: none; margin-top: 8px; padding: 8px; border-radius: 6px; font-size: 13px;"></div>
-                </div>
-
-                <!-- User Management Section (admin only) -->
-                <div id="user-management-section" style="display: none;">
-                    <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border-color);">
-
-                    <div class="form-group">
-                        <label style="font-weight: 600; margin-bottom: 8px; display: block;">User Management</label>
-                        <p class="hint" style="margin-bottom: 12px;">
-                            Add or remove users who can access the admin dashboard. All users can view and edit all content.
-                        </p>
-
-                        <!-- Existing Users List -->
-                        <div id="users-list" style="margin-bottom: 16px;">
-                            <!-- Populated by JS -->
-                        </div>
-
-                        <!-- Add New User Form -->
-                        <div style="padding: 16px; background: var(--bg-subtle); border-radius: 8px;">
-                            <label style="font-weight: 500; font-size: 14px; margin-bottom: 8px; display: block;">Add New User</label>
-                            <input type="email" id="new-user-email" placeholder="user@example.com" style="margin-bottom: 8px;">
-                            <input type="password" id="new-user-password" placeholder="Temporary password (min 8 characters)" style="margin-bottom: 12px;">
-                            <button class="btn btn-primary" onclick="addUser()" style="width: 100%;">Add User</button>
-                            <div id="add-user-msg" style="display: none; margin-top: 8px; padding: 8px; border-radius: 6px; font-size: 13px;"></div>
-                        </div>
-                    </div>
-                </div>
             </div>
             <div class="modal-footer">
                 <span id="settings-saved-msg" style="display: none; color: #059669; font-size: 14px; font-weight: 500;">✓ Saved</span>
                 <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
                 <button class="btn btn-primary" onclick="saveApiKeys()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users Modal (Admin only) -->
+    <div class="modal-overlay" id="users-modal">
+        <div class="modal" style="max-width: 550px;">
+            <div class="modal-header">
+                <h2>User Management</h2>
+                <button class="modal-close" onclick="closeUsersModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="hint" style="margin-bottom: 20px;">
+                    Add or remove users who can access the admin dashboard. All users can view and edit all content.
+                </p>
+
+                <!-- Existing Users List -->
+                <div id="users-list" style="margin-bottom: 20px;">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- Add New User Form -->
+                <div style="padding: 16px; background: var(--bg-subtle); border-radius: 8px;">
+                    <label style="font-weight: 600; font-size: 14px; margin-bottom: 12px; display: block;">Add New User</label>
+                    <input type="email" id="new-user-email" placeholder="user@example.com" style="margin-bottom: 8px;">
+                    <input type="password" id="new-user-password" placeholder="Temporary password (min 8 characters)" style="margin-bottom: 12px;">
+                    <button class="btn btn-primary" onclick="addUser()" style="width: 100%;">Add User</button>
+                    <div id="add-user-msg" style="display: none; margin-top: 8px; padding: 8px; border-radius: 6px; font-size: 13px;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeUsersModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Modal (All users) -->
+    <div class="modal-overlay" id="account-modal">
+        <div class="modal" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2>Account</h2>
+                <button class="modal-close" onclick="closeAccountModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Current User Info -->
+                <div style="padding: 16px; background: var(--bg-subtle); border-radius: 8px; margin-bottom: 20px;">
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Logged in as</p>
+                    <p id="account-email" style="font-weight: 600; font-size: 16px;"></p>
+                </div>
+
+                <!-- Change Password Section -->
+                <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px;">Change Password</h3>
+                <input type="password" id="current-password" placeholder="Current password" style="margin-bottom: 8px;">
+                <input type="password" id="new-password" placeholder="New password (min 8 characters)" style="margin-bottom: 8px;">
+                <input type="password" id="confirm-password" placeholder="Confirm new password" style="margin-bottom: 12px;">
+                <button class="btn btn-primary" onclick="changePassword()" style="width: 100%;">Update Password</button>
+                <div id="password-change-msg" style="display: none; margin-top: 8px; padding: 8px; border-radius: 6px; font-size: 13px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAccountModal()">Close</button>
             </div>
         </div>
     </div>
@@ -2116,7 +2152,6 @@
         // =====================
         function openSettingsModal() {
             loadApiKeys();
-            loadCurrentUser();
             document.getElementById('settings-modal').classList.add('show');
         }
 
@@ -2228,18 +2263,47 @@
                 });
                 if (response.ok) {
                     currentUser = await response.json();
-                    // Show user management section only for admin (first user)
-                    const userMgmtSection = document.getElementById('user-management-section');
+                    // Show Users nav button only for admin (first user)
+                    const usersNavBtn = document.getElementById('users-nav-btn');
                     if (currentUser.is_first_user) {
-                        userMgmtSection.style.display = 'block';
-                        loadUsers();
+                        usersNavBtn.style.display = 'flex';
                     } else {
-                        userMgmtSection.style.display = 'none';
+                        usersNavBtn.style.display = 'none';
+                    }
+                    // Update account email display
+                    const accountEmail = document.getElementById('account-email');
+                    if (accountEmail) {
+                        accountEmail.textContent = currentUser.email;
                     }
                 }
             } catch (error) {
                 console.error('Failed to load current user:', error);
             }
+        }
+
+        // Users Modal functions
+        function openUsersModal() {
+            loadUsers();
+            document.getElementById('users-modal').classList.add('show');
+        }
+
+        function closeUsersModal() {
+            document.getElementById('users-modal').classList.remove('show');
+        }
+
+        // Account Modal functions
+        function openAccountModal() {
+            loadCurrentUser();
+            document.getElementById('account-modal').classList.add('show');
+        }
+
+        function closeAccountModal() {
+            document.getElementById('account-modal').classList.remove('show');
+            // Clear password fields
+            document.getElementById('current-password').value = '';
+            document.getElementById('new-password').value = '';
+            document.getElementById('confirm-password').value = '';
+            document.getElementById('password-change-msg').style.display = 'none';
         }
 
         async function loadUsers() {
@@ -2809,6 +2873,7 @@
             updateThemeUI(getStoredTheme());
 
             loadCourses();
+            loadCurrentUser();  // Load user info to show/hide Users button
             setupFileUpload();
             setupWidgetStyleInputs();
             setupContextUsageTracking();
