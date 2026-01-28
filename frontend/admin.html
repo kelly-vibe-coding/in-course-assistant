@@ -2602,6 +2602,9 @@
                             <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
                                 ${user.is_first_user ? 'Admin' : 'User'} · Added ${new Date(user.created_at).toLocaleDateString()}
                             </div>
+                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                                ${user.last_login_at ? 'Last login: ' + new Date(user.last_login_at).toLocaleString() : 'Never logged in'}
+                            </div>
                         </div>
                     </div>
                     ${!user.is_first_user ? `

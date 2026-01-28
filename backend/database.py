@@ -45,6 +45,7 @@ class AdminUser(Base):
     password_hash = Column(String(255), nullable=False)
     is_first_user = Column(Boolean, default=False)  # Only first user can manage other users
     created_at = Column(DateTime, default=datetime.utcnow)
+    last_login_at = Column(DateTime, nullable=True)  # Updated on each successful login
 
     def set_password(self, password: str):
         """Hash and set the password."""
@@ -224,3 +225,12 @@ def _run_migrations():
                 conn.execute(text("UPDATE admin_users SET is_first_user = 1, email = 'kelly.r.mullaney@gmail.com' WHERE email = 'kellymullaney'"))
                 conn.commit()
                 print("Migration: Added is_first_user column and migrated existing user")
+            # Refresh columns list after adding is_first_user
+            columns = [col['name'] for col in inspector.get_columns('admin_users')]
+
+        # Migration: Add last_login_at column if it doesn't exist
+        if 'last_login_at' not in columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE admin_users ADD COLUMN last_login_at DATETIME"))
+                conn.commit()
+                print("Migration: Added last_login_at column to admin_users table")

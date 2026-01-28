@@ -62,6 +62,7 @@ def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(securit
     """
     Verify admin credentials against the database.
     Returns the email if valid, raises 401 if not.
+    Also updates last_login_at timestamp.
     """
     db = SessionLocal()
     try:
@@ -73,6 +74,10 @@ def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(securit
                 detail="Invalid credentials",
                 headers={"WWW-Authenticate": "Basic realm=\"Admin Access\""}
             )
+
+        # Update last login timestamp
+        admin.last_login_at = datetime.utcnow()
+        db.commit()
 
         return credentials.username
     finally:
@@ -2061,7 +2066,8 @@ async def list_users(request: Request):
                 "id": u.id,
                 "email": u.email,
                 "is_first_user": u.is_first_user,
-                "created_at": u.created_at.isoformat()
+                "created_at": u.created_at.isoformat(),
+                "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None
             }
             for u in users
         ]
